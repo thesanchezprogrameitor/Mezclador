@@ -425,26 +425,30 @@ function buildResistor(ohms, row, colA, colB) {
   return g;
 }
 
-function buildResistorFlat(ohms, row, colA, colB) {
+function buildResistorLaid(ohms, a, b) {
   const g = new THREE.Group();
-  const a = holePos(colA, row);
-  const b = holePos(colB, row);
-  const midX = (a.x + b.x) / 2;
+  const mid = V((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
+  const axis = V(b.x - a.x, 0, b.z - a.z).normalize();
+  if (Math.abs(axis.x) > Math.abs(axis.z) ? axis.x < 0 : axis.z < 0) axis.negate();
   const axisY = BOARD_TOP + RES.R_END + 0.02;
   const bottomY = BOARD_TOP - 0.1;
 
   const body = buildResistorBody(ohms);
-  body.rotation.z = -Math.PI / 2;
-  body.position.set(midX, axisY, a.z);
+  body.quaternion.setFromUnitVectors(V(0, 1, 0), axis);
+  body.position.set(mid.x, axisY, mid.z);
   g.add(body);
 
   for (const p of [a, b]) {
-    const side = Math.sign(midX - p.x);
-    const tip = midX - side * (RES.HALF - 0.04);
-    const path = roundedPath([V(p.x, bottomY, p.z), V(p.x, axisY, p.z), V(tip, axisY, p.z)], 0.07);
+    const outward = V(p.x - mid.x, 0, p.z - mid.z).normalize();
+    const tip = mid.clone().addScaledVector(outward, RES.HALF - 0.04);
+    const path = roundedPath([V(p.x, bottomY, p.z), V(p.x, axisY, p.z), V(tip.x, axisY, tip.z)], 0.07);
     g.add(mesh(new THREE.TubeGeometry(path, 120, RES.WIRE, 20, false), LEG_METAL, true, false));
   }
   return g;
+}
+
+function buildResistorFlat(ohms, row, colA, colB) {
+  return buildResistorLaid(ohms, holePos(colA, row), holePos(colB, row));
 }
 
 const WIRE_HEX = { brown: '#7b4a22', red: '#c4302b', orange: '#ec6208' };
@@ -505,6 +509,8 @@ scene.add(buildResistor(20000, 'g', 33, 32));
 scene.add(buildResistorFlat(100000, 'j', 33, 40));
 scene.add(buildJumper(28, 'i', 40, 'i', 'orange'));
 scene.add(buildJumper(40, 'f', 40, 'e', 'orange'));
+scene.add(buildResistor(20000, 'd', 28, 27));
+scene.add(buildResistorLaid(10000, holePos(28, 'c'), holePos(28, 'T+')));
 
 /* ===== Navegación ===== */
 
