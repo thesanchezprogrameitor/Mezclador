@@ -366,60 +366,84 @@ function bandColors(ohms, tolerance = 'gold') {
   return [DIGIT_COLORS[Math.floor(mant / 10)], DIGIT_COLORS[mant % 10], mult, tolerance];
 }
 
+const RES = { HALF: 0.315, R_MID: 0.1, R_END: 0.122, BEVEL: 0.1, CAP: 0.05, WIRE: 0.02, SEG: 72 };
+
+function resRadiusAt(y) {
+  const ay = Math.abs(y);
+  const base = RES.R_MID + (RES.R_END - RES.R_MID) * THREE.MathUtils.smoothstep(ay, RES.HALF - RES.BEVEL, RES.HALF - RES.CAP);
+  const k = Math.max(0, (ay - (RES.HALF - RES.CAP)) / RES.CAP);
+  return base * Math.sqrt(Math.max(0, 1 - k * k));
+}
+
+function buildResistorBody(ohms) {
+  const g = new THREE.Group();
+  const profile = [];
+  for (let i = 0; i <= 80; i++) {
+    const y = -RES.HALF + (2 * RES.HALF * i) / 80;
+    profile.push(new THREE.Vector2(Math.max(0.0005, resRadiusAt(y)), y));
+  }
+  g.add(mesh(new THREE.LatheGeometry(profile, RES.SEG), std('#dcbd86', 0.5, 0)));
+
+  const offsets = [0.215, 0.13, 0.045, -0.2];
+  const BAND_W = 0.05;
+  bandColors(ohms).forEach((name, i) => {
+    const ring = [];
+    for (let s = 0; s <= 12; s++) {
+      const t = s / 12;
+      const y = offsets[i] - BAND_W / 2 + BAND_W * t;
+      ring.push(new THREE.Vector2(resRadiusAt(y) + 0.0012 + 0.0035 * Math.pow(Math.sin(Math.PI * t), 0.5), y));
+    }
+    g.add(mesh(new THREE.LatheGeometry(ring, RES.SEG), bandMat(name), false));
+  });
+  return g;
+}
+
 function buildResistor(ohms, row, colA, colB) {
   const g = new THREE.Group();
   const a = holePos(colA, row);
   const b = holePos(colB, row);
   const dir = Math.sign(b.x - a.x);
 
-  const HALF = 0.315, R_MID = 0.1, R_END = 0.122, BEVEL = 0.1, CAP = 0.05, WIRE = 0.02, SEG = 72;
-  const radiusAt = y => {
-    const ay = Math.abs(y);
-    const base = R_MID + (R_END - R_MID) * THREE.MathUtils.smoothstep(ay, HALF - BEVEL, HALF - CAP);
-    const k = Math.max(0, (ay - (HALF - CAP)) / CAP);
-    return base * Math.sqrt(Math.max(0, 1 - k * k));
-  };
   const bodyBottom = BOARD_TOP + 0.05;
-  const bodyY = bodyBottom + HALF;
-  const bodyTop = bodyY + HALF;
+  const bodyY = bodyBottom + RES.HALF;
+  const bodyTop = bodyY + RES.HALF;
   const bottomY = BOARD_TOP - 0.1;
 
-  const profile = [];
-  for (let i = 0; i <= 80; i++) {
-    const y = -HALF + (2 * HALF * i) / 80;
-    profile.push(new THREE.Vector2(Math.max(0.0005, radiusAt(y)), y));
-  }
-  const body = mesh(new THREE.LatheGeometry(profile, SEG), std('#dcbd86', 0.5, 0));
+  const body = buildResistorBody(ohms);
   body.position.set(a.x, bodyY, a.z);
   g.add(body);
 
-  const colors = bandColors(ohms);
-  const offsets = [0.215, 0.13, 0.045, -0.2];
-  const BAND_W = 0.05;
-  colors.forEach((name, i) => {
-    const ring = [];
-    for (let s = 0; s <= 12; s++) {
-      const t = s / 12;
-      const y = offsets[i] - BAND_W / 2 + BAND_W * t;
-      ring.push(new THREE.Vector2(radiusAt(y) + 0.0012 + 0.0035 * Math.pow(Math.sin(Math.PI * t), 0.5), y));
-    }
-    const band = mesh(new THREE.LatheGeometry(ring, SEG), bandMat(name), false);
-    band.position.set(a.x, bodyY, a.z);
-    g.add(band);
-  });
-
-  const legA = mesh(new THREE.CylinderGeometry(WIRE, WIRE, bodyBottom + 0.12 - bottomY, 20), LEG_METAL);
+  const legA = mesh(new THREE.CylinderGeometry(RES.WIRE, RES.WIRE, bodyBottom + 0.12 - bottomY, 20), LEG_METAL);
   legA.position.set(a.x, (bodyBottom + 0.12 + bottomY) / 2, a.z);
   g.add(legA);
 
-  const arch = bodyTop + 0.075, rr = 0.07;
-  const path = new THREE.CurvePath();
-  path.add(new THREE.LineCurve3(V(a.x, bodyTop - 0.1, a.z), V(a.x, arch - rr, a.z)));
-  path.add(new THREE.QuadraticBezierCurve3(V(a.x, arch - rr, a.z), V(a.x, arch, a.z), V(a.x + dir * rr, arch, a.z)));
-  path.add(new THREE.LineCurve3(V(a.x + dir * rr, arch, a.z), V(b.x - dir * rr, arch, b.z)));
-  path.add(new THREE.QuadraticBezierCurve3(V(b.x - dir * rr, arch, b.z), V(b.x, arch, b.z), V(b.x, arch - rr, b.z)));
-  path.add(new THREE.LineCurve3(V(b.x, arch - rr, b.z), V(b.x, bottomY, b.z)));
-  g.add(mesh(new THREE.TubeGeometry(path, 200, WIRE, 20, false), LEG_METAL));
+  const arch = bodyTop + 0.075;
+  const path = roundedPath([
+    V(a.x, bodyTop - 0.1, a.z), V(a.x, arch, a.z), V(b.x, arch, b.z), V(b.x, bottomY, b.z),
+  ], 0.07);
+  g.add(mesh(new THREE.TubeGeometry(path, 200, RES.WIRE, 20, false), LEG_METAL));
+  return g;
+}
+
+function buildResistorFlat(ohms, row, colA, colB) {
+  const g = new THREE.Group();
+  const a = holePos(colA, row);
+  const b = holePos(colB, row);
+  const midX = (a.x + b.x) / 2;
+  const axisY = BOARD_TOP + RES.R_END + 0.02;
+  const bottomY = BOARD_TOP - 0.1;
+
+  const body = buildResistorBody(ohms);
+  body.rotation.z = -Math.PI / 2;
+  body.position.set(midX, axisY, a.z);
+  g.add(body);
+
+  for (const p of [a, b]) {
+    const side = Math.sign(midX - p.x);
+    const tip = midX - side * (RES.HALF - 0.04);
+    const path = roundedPath([V(p.x, bottomY, p.z), V(p.x, axisY, p.z), V(tip, axisY, p.z)], 0.07);
+    g.add(mesh(new THREE.TubeGeometry(path, 120, RES.WIRE, 20, false), LEG_METAL));
+  }
   return g;
 }
 
@@ -476,6 +500,7 @@ scene.add(buildResistor(100000, 'g', 28, 27));
 scene.add(buildJumper(29, 'j', 29, 'B-', 'brown'));
 scene.add(buildJumper(30, 'j', 31, 'B+', 'orange', 0.11, [[30, 'B+']]));
 scene.add(buildJumper(31, 'j', 31, 'B-', 'brown'));
+scene.add(buildResistorFlat(10000, 'h', 32, 18));
 
 /* ===== Navegación ===== */
 
