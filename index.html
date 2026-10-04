@@ -1125,6 +1125,16 @@ const STAGE_VIEW = {
     ],
     note: 'Es un seguidor de voltaje. La salida es igual a la entrada: misma amplitud, misma frecuencia y sin desfase. Por eso las dos ondas quedan una encima de la otra. Sirve para aislar la señal V2 de la etapa que sigue.',
   },
+  'U1:D': {
+    title: 'Amplificador no inversor',
+    vdiv: 1,
+    tdiv: 0.1e-3,
+    channels: [
+      { name: 'CH1 · Entrada', probe: 'En V3 (directo a la pata 12)', color: COLOR_IN, amp: 1, f: 3000, phase: 0 },
+      { name: 'CH2 · Salida', probe: 'En la pata 14', color: COLOR_OUT, amp: 3, f: 3000, phase: 0 },
+    ],
+    note: 'Es un amplificador no inversor. La salida tiene el triple de amplitud que la entrada y va en fase: las dos ondas suben y bajan al mismo tiempo, sin desfase.',
+  },
 };
 
 const sv = {
@@ -1527,7 +1537,6 @@ function animate() {
 camera.position.set(HOME.pos.x + 5, HOME.pos.y * 1.45, HOME.pos.z * 1.3);
 flyTo(HOME.pos.clone(), HOME.target.clone(), 2.2, 'out');
 animate();
-document.getElementById('loading').hidden = true;
-</script>
+document.getElementById('loading').hidden = true;</script>
 </body>
 </html>
