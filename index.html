@@ -1135,6 +1135,21 @@ const STAGE_VIEW = {
     ],
     note: 'Es un amplificador no inversor. La salida tiene el triple de amplitud que la entrada y va en fase: las dos ondas suben y bajan al mismo tiempo, sin desfase.',
   },
+  'U1:A': {
+    title: 'Sumador inversor',
+    vdiv: 2,
+    tdiv: 0.5e-3,
+    trigger: 'CH2',
+    edge: '↓',
+    channels: [
+      { name: 'CH1 · Entrada', probe: 'Pata 2 del LM324', color: COLOR_IN, wave: () => 0, f: 0, stats: { hi: 0, lo: 0, rms: 0 } },
+      {
+        name: 'CH2 · Salida', probe: 'Pata 1 del LM324', color: COLOR_OUT, f: 500,
+        wave: t => 2 * Math.sin(2 * Math.PI * 1000 * t) - 2 * Math.sin(2 * Math.PI * 500 * t) - 3 * Math.sin(2 * Math.PI * 3000 * t),
+      },
+    ],
+    note: 'Es un sumador inversor. La entrada marca casi 0 V porque es una tierra virtual: el amplificador mantiene la pata 2 en 0 V. Ahí se juntan las tres señales que llegan por R1, R2 y R3, y la salida es esa suma invertida: 2·V1 − V2 − 3·V3. Por eso la onda ya no es una senoidal limpia, sino la mezcla de las tres.',
+  },
 };
 
 const sv = {
@@ -1154,6 +1169,19 @@ const fmtV = v => `${fmt(v)} V`;
 const fmtF = f => (f >= 1000 ? `${fmt(f / 1000)} kHz` : `${fmt(f, 0)} Hz`);
 const fmtT = t => (t >= 1e-3 ? `${fmt(t * 1e3)} ms` : `${fmt(t * 1e6, 0)} µs`);
 const sample = (ch, t) => (ch.wave ? ch.wave(t) : ch.amp * Math.sin(2 * Math.PI * ch.f * t + ch.phase));
+
+function waveStats(ch) {
+  if (!ch.wave) return { hi: ch.amp, lo: -ch.amp, rms: ch.amp / Math.SQRT2 };
+  const period = 1 / ch.f, N = 20000;
+  let hi = -Infinity, lo = Infinity, sq = 0;
+  for (let k = 0; k < N; k++) {
+    const v = ch.wave((k / N) * period);
+    hi = Math.max(hi, v);
+    lo = Math.min(lo, v);
+    sq += v * v;
+  }
+  return { hi, lo, rms: Math.sqrt(sq / N) };
+}
 
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -1195,10 +1223,11 @@ function buildSide(view) {
       cell.append(el('span', '', k), el('b', '', v));
       grid.append(cell);
     };
-    add('Vp', fmtV(ch.amp));
-    add('Vpp', fmtV(2 * ch.amp));
-    add('Vrms', fmtV(ch.amp / Math.SQRT2));
-    add('Frecuencia', fmtF(ch.f));
+    const st = ch.stats;
+    add('Vp', fmtV(Math.max(st.hi, -st.lo)));
+    add('Vpp', fmtV(st.hi - st.lo));
+    add('Vrms', fmtV(st.rms));
+    add('Frecuencia', ch.f ? fmtF(ch.f) : '—');
     card.append(head, grid);
     const toggle = () => {
       svHidden[i] = !svHidden[i];
@@ -1225,7 +1254,7 @@ function buildScale(view) {
     s.append(b, ` ${fmt(view.vdiv, view.vdiv < 1 ? 1 : 0)} V/div`);
     sv.scale.append(s);
   });
-  sv.scale.append(el('span', '', `${fmtT(view.tdiv)}/div`), el('span', '', 'Disparo: CH1 ↑ 0 V'));
+  sv.scale.append(el('span', '', `${fmtT(view.tdiv)}/div`), el('span', '', `Disparo: ${view.trigger || 'CH1'} ${view.edge || '↑'} 0 V`));
 }
 
 function drawScope(now) {
@@ -1275,15 +1304,17 @@ function drawScope(now) {
   const tStart = -view.tdiv;
   const tSpan = COLS * view.tdiv;
 
+  const marked = ch => ch.stats.hi - ch.stats.lo > 0.1;
+
   view.channels.forEach((ch, i) => {
-    if (svHidden[i]) return;
+    if (svHidden[i] || !marked(ch)) return;
     x.save();
     x.setLineDash([6, 6]);
     x.strokeStyle = ch.color;
     x.globalAlpha = 0.45;
     x.lineWidth = 1;
     x.beginPath();
-    for (const v of [ch.amp, -ch.amp]) { x.moveTo(m, yOf(v)); x.lineTo(m + gw, yOf(v)); }
+    for (const v of [ch.stats.hi, ch.stats.lo]) { x.moveTo(m, yOf(v)); x.lineTo(m + gw, yOf(v)); }
     x.stroke();
     x.restore();
   });
@@ -1300,7 +1331,7 @@ function drawScope(now) {
     const jitter = (Math.random() - 0.5) * tSpan * 0.0015;
     for (let k = 0; k <= N; k++) {
       const t = tStart + (k / N) * tSpan + jitter;
-      const v = sample(ch, t) + (Math.random() - 0.5) * 0.02 * Math.max(1, ch.amp);
+      const v = sample(ch, t) + (Math.random() - 0.5) * 0.02 * Math.max(1, ch.stats.hi);
       const px = m + (k / N) * gw, py = yOf(v);
       if (k === 0) x.moveTo(px, py); else x.lineTo(px, py);
     }
@@ -1308,10 +1339,10 @@ function drawScope(now) {
     x.restore();
   });
 
-  const visible = view.channels.map((ch, i) => ({ ch, i })).filter(o => !svHidden[o.i]);
+  const visible = view.channels.map((ch, i) => ({ ch, i })).filter(o => !svHidden[o.i] && marked(o.ch));
   visible.forEach(({ ch }, n) => {
     const bx = m + gw - 18 - n * 74;
-    const top = yOf(ch.amp), bot = yOf(-ch.amp);
+    const top = yOf(ch.stats.hi), bot = yOf(ch.stats.lo);
     x.strokeStyle = ch.color;
     x.lineWidth = 1.5;
     x.beginPath();
@@ -1319,7 +1350,7 @@ function drawScope(now) {
     x.moveTo(bx, top); x.lineTo(bx, bot);
     x.moveTo(bx - 6, bot); x.lineTo(bx + 6, bot);
     x.stroke();
-    const label = `Vpp ${fmt(2 * ch.amp)} V`;
+    const label = `Vpp ${fmt(ch.stats.hi - ch.stats.lo)} V`;
     x.font = '700 11.5px Consolas, "Courier New", monospace';
     const tw = x.measureText(label).width;
     const ly = (top + bot) / 2;
@@ -1330,7 +1361,7 @@ function drawScope(now) {
     x.fillText(label, bx - 8, ly);
 
     x.textAlign = 'left';
-    const pl = `+Vp ${fmt(ch.amp)} V`;
+    const pl = `+Vp ${fmt(ch.stats.hi)} V`;
     const pw = x.measureText(pl).width;
     const px = m + 8 + n * 118;
     x.fillStyle = 'rgba(6,18,12,0.85)';
@@ -1355,6 +1386,7 @@ function openScope(stage) {
   if (!view) return;
   svStage = stage;
   svHidden = view.channels.map(() => false);
+  view.channels.forEach(ch => { ch.stats = ch.stats || waveStats(ch); });
   sv.tag.textContent = stage;
   sv.title.textContent = view.title;
   buildSide(view);
