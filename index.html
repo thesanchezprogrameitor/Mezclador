@@ -1115,6 +1115,16 @@ const STAGE_VIEW = {
     ],
     note: 'Es un amplificador inversor. La salida tiene el doble de amplitud que la entrada y está invertida: cuando la entrada sube, la salida baja. Por eso las dos ondas están desfasadas 180°.',
   },
+  'U1:C': {
+    title: 'Seguidor de voltaje',
+    vdiv: 1,
+    tdiv: 0.5e-3,
+    channels: [
+      { name: 'CH1 · Entrada', probe: 'En V2, antes de R9', color: COLOR_IN, amp: 2, f: 500, phase: 0, width: 6 },
+      { name: 'CH2 · Salida', probe: 'En la pata 8', color: COLOR_OUT, amp: 2, f: 500, phase: 0 },
+    ],
+    note: 'Es un seguidor de voltaje. La salida es igual a la entrada: misma amplitud, misma frecuencia y sin desfase. Por eso las dos ondas quedan una encima de la otra. Sirve para aislar la señal V2 de la etapa que sigue.',
+  },
 };
 
 const sv = {
@@ -1272,7 +1282,7 @@ function drawScope(now) {
     if (svHidden[i]) return;
     x.save();
     x.strokeStyle = ch.color;
-    x.lineWidth = 2.2;
+    x.lineWidth = ch.width || 2.2;
     x.shadowColor = ch.color;
     x.shadowBlur = 10;
     x.beginPath();
