@@ -34,6 +34,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /* ===== Renderer y escena ===== */
 
@@ -138,6 +139,7 @@ const ROWZ = {
   a: -1.416, b: -1.162, c: -0.908, d: -0.654, e: -0.4, f: 0.4, g: 0.654, h: 0.908, i: 1.162, j: 1.416,
   'B-': 2.0, 'B+': 2.254, 'T+': -2.0, 'T-': -2.254,
 };
+const holePos = (col, row) => V(colX(col), BOARD_TOP, ROWZ[row]);
 
 /* ===== Mesa ===== */
 
@@ -293,10 +295,73 @@ function buildBoard() {
   return g;
 }
 
+/* ===== Componentes ===== */
+
+function buildIC(pinCount, label) {
+  const half = pinCount / 2;
+  const first = 27;
+  const last = first + half - 1;
+  const g = new THREE.Group();
+
+  const BODY_L = 1.95, BODY_W = 0.66, BODY_H = 0.33, LIFT = 0.04;
+  const bodyY = BOARD_TOP + LIFT + BODY_H / 2;
+  const cx = (colX(first) + colX(last)) / 2;
+
+  const body = mesh(new RoundedBoxGeometry(BODY_L, BODY_H, BODY_W, 3, 0.03), std('#232427', 0.5, 0.05));
+  body.position.set(cx, bodyY, 0);
+  g.add(body);
+
+  const S = 600;
+  const tex = canvasTex(Math.round(BODY_L * S), Math.round(BODY_W * S), (x, w, h) => {
+    x.clearRect(0, 0, w, h);
+    x.fillStyle = '#08080a';
+    x.beginPath();
+    x.arc(0, h / 2, 0.1 * S, -Math.PI / 2, Math.PI / 2);
+    x.fill();
+    x.strokeStyle = '#46484e';
+    x.lineWidth = 3;
+    x.stroke();
+    x.fillStyle = '#4a4c52';
+    x.beginPath();
+    x.arc(0.24 * S, h - 0.14 * S, 0.035 * S, 0, Math.PI * 2);
+    x.fill();
+    x.fillStyle = '#d4d7dd';
+    x.font = `700 ${0.2 * S}px Arial`;
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillText(label, w * 0.55, h / 2);
+  });
+  const mark = decal(tex, BODY_L, BODY_W);
+  mark.rotation.x = -Math.PI / 2;
+  mark.position.set(cx, bodyY + BODY_H / 2 + 0.0015, 0);
+  g.add(mark);
+
+  const legW = 0.06, legT = 0.026;
+  const shoulderY = BOARD_TOP + LIFT + 0.09;
+  const bottomY = BOARD_TOP - 0.1;
+  const parts = [];
+  for (let n = 1; n <= pinCount; n++) {
+    const front = n <= half;
+    const p = holePos(front ? first + n - 1 : last - (n - half - 1), front ? 'f' : 'e');
+    const dir = front ? 1 : -1;
+
+    const shoulder = new THREE.BoxGeometry(legW, legT, 0.12);
+    shoulder.translate(p.x, shoulderY, p.z - dir * 0.05);
+    parts.push(shoulder);
+
+    const drop = new THREE.BoxGeometry(legW, shoulderY - bottomY, legT);
+    drop.translate(p.x, (shoulderY + bottomY) / 2, p.z);
+    parts.push(drop);
+  }
+  const legs = mesh(mergeGeometries(parts), std('#a9adb4', 0.38, 0.75));
+  g.add(legs);
+  return g;
+}
 /* ===== Montaje ===== */
 
 scene.add(buildTable());
 scene.add(buildBoard());
+scene.add(buildIC(14, 'LM324'));
 
 /* ===== Navegación ===== */
 
