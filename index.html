@@ -106,10 +106,10 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const std = (color, roughness = 0.5, metalness = 0, extra = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness, metalness, ...extra });
 
-function mesh(geo, mat, cast = true) {
+function mesh(geo, mat, cast = true, receive = true) {
   const m = new THREE.Mesh(geo, mat);
   m.castShadow = cast;
-  m.receiveShadow = true;
+  m.receiveShadow = receive;
   return m;
 }
 
@@ -421,7 +421,7 @@ function buildResistor(ohms, row, colA, colB) {
   const path = roundedPath([
     V(a.x, bodyTop - 0.1, a.z), V(a.x, arch, a.z), V(b.x, arch, b.z), V(b.x, bottomY, b.z),
   ], 0.07);
-  g.add(mesh(new THREE.TubeGeometry(path, 200, RES.WIRE, 20, false), LEG_METAL));
+  g.add(mesh(new THREE.TubeGeometry(path, 200, RES.WIRE, 20, false), LEG_METAL, true, false));
   return g;
 }
 
@@ -442,7 +442,7 @@ function buildResistorFlat(ohms, row, colA, colB) {
     const side = Math.sign(midX - p.x);
     const tip = midX - side * (RES.HALF - 0.04);
     const path = roundedPath([V(p.x, bottomY, p.z), V(p.x, axisY, p.z), V(tip, axisY, p.z)], 0.07);
-    g.add(mesh(new THREE.TubeGeometry(path, 120, RES.WIRE, 20, false), LEG_METAL));
+    g.add(mesh(new THREE.TubeGeometry(path, 120, RES.WIRE, 20, false), LEG_METAL, true, false));
   }
   return g;
 }
@@ -481,7 +481,7 @@ function buildJumper(colA, rowA, colB, rowB, color, rise = 0.11, via = []) {
   const plan = [a, ...via.map(([c, r]) => holePos(c, r)), b];
   const points = [V(a.x, y0, a.z), ...plan.map(p => V(p.x, hTop, p.z)), V(b.x, y0, b.z)];
   const path = roundedPath(points, rise > 0.3 ? 0.16 : 0.06);
-  g.add(mesh(new THREE.TubeGeometry(path, 160, SHEATH, 20, false), wireMat(color)));
+  g.add(mesh(new THREE.TubeGeometry(path, 160, SHEATH, 20, false), wireMat(color), true, false));
 
   for (const p of [a, b]) {
     const pin = mesh(new THREE.CylinderGeometry(PIN, PIN, y0 + 0.02 - bottomY, 16), LEG_METAL);
@@ -501,6 +501,8 @@ scene.add(buildJumper(29, 'j', 29, 'B-', 'brown'));
 scene.add(buildJumper(30, 'j', 31, 'B+', 'orange', 0.11, [[30, 'B+']]));
 scene.add(buildJumper(31, 'j', 31, 'B-', 'brown'));
 scene.add(buildResistorFlat(10000, 'h', 32, 18));
+scene.add(buildResistor(20000, 'j', 33, 32));
+scene.add(buildResistorFlat(100000, 'h', 33, 40));
 
 /* ===== Navegación ===== */
 
