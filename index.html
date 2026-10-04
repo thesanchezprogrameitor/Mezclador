@@ -427,7 +427,25 @@ const WIRE_HEX = { brown: '#7b4a22', red: '#c4302b' };
 const wireMats = {};
 const wireMat = name => wireMats[name] || (wireMats[name] = std(WIRE_HEX[name], 0.42, 0));
 
-function buildJumper(colA, rowA, colB, rowB, color, rise = 0.11) {
+function roundedPath(points, radius) {
+  const path = new THREE.CurvePath();
+  let cursor = points[0].clone();
+  for (let i = 1; i < points.length - 1; i++) {
+    const p = points[i];
+    const dirIn = p.clone().sub(points[i - 1]);
+    const dirOut = points[i + 1].clone().sub(p);
+    const r = Math.min(radius, dirIn.length() / 2, dirOut.length() / 2);
+    const start = p.clone().addScaledVector(dirIn.normalize(), -r);
+    const end = p.clone().addScaledVector(dirOut.normalize(), r);
+    path.add(new THREE.LineCurve3(cursor, start));
+    path.add(new THREE.QuadraticBezierCurve3(start, p.clone(), end));
+    cursor = end;
+  }
+  path.add(new THREE.LineCurve3(cursor, points[points.length - 1].clone()));
+  return path;
+}
+
+function buildJumper(colA, rowA, colB, rowB, color, rise = 0.11, via = []) {
   const g = new THREE.Group();
   const a = holePos(colA, rowA);
   const b = holePos(colB, rowB);
@@ -435,17 +453,11 @@ function buildJumper(colA, rowA, colB, rowB, color, rise = 0.11) {
   const hTop = BOARD_TOP + rise;
   const y0 = BOARD_TOP + BASE;
   const bottomY = BOARD_TOP - 0.1;
-  const len = Math.hypot(b.x - a.x, b.z - a.z);
-  const rr = Math.min(rise > 0.3 ? 0.16 : 0.045, len / 4);
-  const d = V(b.x - a.x, 0, b.z - a.z).normalize();
 
-  const path = new THREE.CurvePath();
-  path.add(new THREE.LineCurve3(V(a.x, y0, a.z), V(a.x, hTop - rr, a.z)));
-  path.add(new THREE.QuadraticBezierCurve3(V(a.x, hTop - rr, a.z), V(a.x, hTop, a.z), V(a.x + d.x * rr, hTop, a.z + d.z * rr)));
-  path.add(new THREE.LineCurve3(V(a.x + d.x * rr, hTop, a.z + d.z * rr), V(b.x - d.x * rr, hTop, b.z - d.z * rr)));
-  path.add(new THREE.QuadraticBezierCurve3(V(b.x - d.x * rr, hTop, b.z - d.z * rr), V(b.x, hTop, b.z), V(b.x, hTop - rr, b.z)));
-  path.add(new THREE.LineCurve3(V(b.x, hTop - rr, b.z), V(b.x, y0, b.z)));
-  g.add(mesh(new THREE.TubeGeometry(path, 120, SHEATH, 20, false), wireMat(color)));
+  const plan = [a, ...via.map(([c, r]) => holePos(c, r)), b];
+  const points = [V(a.x, y0, a.z), ...plan.map(p => V(p.x, hTop, p.z)), V(b.x, y0, b.z)];
+  const path = roundedPath(points, rise > 0.3 ? 0.16 : 0.06);
+  g.add(mesh(new THREE.TubeGeometry(path, 160, SHEATH, 20, false), wireMat(color)));
 
   for (const p of [a, b]) {
     const pin = mesh(new THREE.CylinderGeometry(PIN, PIN, y0 + 0.02 - bottomY, 16), LEG_METAL);
@@ -462,7 +474,7 @@ scene.add(buildBoard());
 scene.add(buildIC(14, 'LM324'));
 scene.add(buildResistor(100000, 'g', 28, 27));
 scene.add(buildJumper(29, 'j', 29, 'B-', 'brown'));
-scene.add(buildJumper(30, 'j', 31, 'B+', 'red'));
+scene.add(buildJumper(30, 'j', 31, 'B+', 'red', 0.11, [[30, 'B+']]));
 
 /* ===== Navegación ===== */
 
