@@ -423,20 +423,20 @@ function buildResistor(ohms, row, colA, colB) {
   return g;
 }
 
-const WIRE_HEX = { brown: '#7b4a22' };
+const WIRE_HEX = { brown: '#7b4a22', red: '#c4302b' };
 const wireMats = {};
 const wireMat = name => wireMats[name] || (wireMats[name] = std(WIRE_HEX[name], 0.42, 0));
 
-function buildJumper(colA, rowA, colB, rowB, color) {
+function buildJumper(colA, rowA, colB, rowB, color, rise = 0.11) {
   const g = new THREE.Group();
   const a = holePos(colA, rowA);
   const b = holePos(colB, rowB);
-  const SHEATH = 0.032, PIN = 0.016, RISE = 0.11, BASE = 0.012;
-  const hTop = BOARD_TOP + RISE;
+  const SHEATH = 0.032, PIN = 0.016, BASE = 0.012;
+  const hTop = BOARD_TOP + rise;
   const y0 = BOARD_TOP + BASE;
   const bottomY = BOARD_TOP - 0.1;
   const len = Math.hypot(b.x - a.x, b.z - a.z);
-  const rr = Math.min(0.045, len / 4);
+  const rr = Math.min(rise > 0.3 ? 0.16 : 0.045, len / 4);
   const d = V(b.x - a.x, 0, b.z - a.z).normalize();
 
   const path = new THREE.CurvePath();
@@ -462,6 +462,7 @@ scene.add(buildBoard());
 scene.add(buildIC(14, 'LM324'));
 scene.add(buildResistor(100000, 'g', 28, 27));
 scene.add(buildJumper(29, 'j', 29, 'B-', 'brown'));
+scene.add(buildJumper(30, 'j', 31, 'T-', 'red', 0.5));
 
 /* ===== Navegación ===== */
 
