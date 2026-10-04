@@ -824,6 +824,181 @@ function buildSignalGenerator() {
   return g;
 }
 
+/* ===== Osciloscopio ===== */
+
+const STAGES = ['U1:A', 'U1:B', 'U1:C', 'U1:D'];
+
+function scopeKnob() {
+  const g = new THREE.Group();
+  const skirt = mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.06, 40), std('#2c2f35', 0.5, 0.2));
+  skirt.rotation.x = Math.PI / 2;
+  skirt.position.z = 0.03;
+  g.add(skirt);
+  const cap = mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.14, 40), std('#3a3e45', 0.45, 0.25));
+  cap.rotation.x = Math.PI / 2;
+  cap.position.z = 0.13;
+  g.add(cap);
+  const mark = mesh(new THREE.BoxGeometry(0.02, 0.09, 0.01), std('#e8ebef', 0.4), false);
+  mark.position.set(0, 0.07, 0.205);
+  g.add(mark);
+  return g;
+}
+
+function scopeButton(label) {
+  const g = new THREE.Group();
+  const BW = 0.62, BH = 0.3;
+  const base = mesh(new RoundedBoxGeometry(BW + 0.06, BH + 0.06, 0.04, 3, 0.02), std('#16181b', 0.7));
+  base.position.z = 0.02;
+  g.add(base);
+  const cap = mesh(new RoundedBoxGeometry(BW, BH, 0.1, 4, 0.04), std('#3b4048', 0.45, 0.15));
+  cap.position.z = 0.09;
+  g.add(cap);
+  const tex = canvasTex(256, 124, (x, w, h) => {
+    x.clearRect(0, 0, w, h);
+    x.fillStyle = '#f2f4f7';
+    x.font = '800 62px "Segoe UI", Arial, sans-serif';
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillText(label, w / 2, h / 2 + 3);
+  });
+  const face = decal(tex, BW - 0.06, (BW - 0.06) * 124 / 256);
+  face.position.z = 0.141;
+  g.add(face);
+  g.userData.stage = label;
+  return g;
+}
+
+function buildOscilloscope() {
+  const g = new THREE.Group();
+  const W = 4.8, H = 2.3, D = 2.2, FOOT = 0.06;
+  const cy = FOOT + H / 2;
+
+  const body = mesh(new RoundedBoxGeometry(W, H, D, 4, 0.1), std('#c9ccd1', 0.45, 0.35));
+  body.position.y = cy;
+  g.add(body);
+
+  const bezel = mesh(new RoundedBoxGeometry(W - 0.12, H - 0.12, 0.06, 3, 0.03), std('#26292e', 0.55, 0.1));
+  bezel.position.set(0, cy, D / 2 + 0.01);
+  g.add(bezel);
+
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const foot = mesh(new THREE.CylinderGeometry(0.13, 0.15, FOOT, 20), std('#1a1a1a', 0.9));
+      foot.position.set(sx * (W / 2 - 0.35), FOOT / 2, sz * (D / 2 - 0.3));
+      g.add(foot);
+    }
+  }
+
+  const PW = W - 0.2, PH = H - 0.2, PS = 260;
+  const SCR = { x: -0.85, y: -0.08, w: 2.7, h: 1.62 };
+  const CTRL_X = 1.42;
+
+  const panel = canvasTex(Math.round(PW * PS), Math.round(PH * PS), (x, w, h) => {
+    const toP = (px, py) => [(px + PW / 2) * PS, (PH / 2 - py) * PS];
+    x.fillStyle = '#26292e';
+    x.fillRect(0, 0, w, h);
+    x.textBaseline = 'middle';
+
+    x.fillStyle = '#c7cbd2';
+    x.textAlign = 'left';
+    x.font = `700 ${0.11 * PS}px "Segoe UI", Arial, sans-serif`;
+    x.fillText('OSCILOSCOPIO', ...toP(-PW / 2 + 0.12, PH / 2 - 0.12));
+
+    x.textAlign = 'center';
+    x.fillStyle = '#8b9099';
+    x.font = `600 ${0.075 * PS}px "Segoe UI", Arial, sans-serif`;
+    x.fillText('VOLTS/DIV', ...toP(CTRL_X - 0.42, 0.78));
+    x.fillText('TIME/DIV', ...toP(CTRL_X + 0.42, 0.78));
+    x.fillText('ETAPA', ...toP(CTRL_X, 0.08));
+    x.strokeStyle = '#3d4148';
+    x.lineWidth = 3;
+    x.beginPath();
+    x.moveTo(...toP(CTRL_X - 0.75, 0.16));
+    x.lineTo(...toP(CTRL_X + 0.75, 0.16));
+    x.stroke();
+  });
+  const face = decal(panel, PW, PH);
+  face.position.set(0, cy, D / 2 + 0.042);
+  g.add(face);
+
+  const SS = 300;
+  const screenTex = canvasTex(Math.round(SCR.w * SS), Math.round(SCR.h * SS), (x, w, h) => {
+    const bg = x.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.7);
+    bg.addColorStop(0, '#0f2a1d');
+    bg.addColorStop(1, '#06120c');
+    x.fillStyle = bg;
+    x.fillRect(0, 0, w, h);
+    const cols = 10, rows = 8, m = 0.06 * SS;
+    const gw = w - 2 * m, gh = h - 2 * m;
+    x.strokeStyle = 'rgba(120,200,150,0.18)';
+    x.lineWidth = 1.5;
+    for (let i = 0; i <= cols; i++) {
+      x.beginPath();
+      x.moveTo(m + (gw * i) / cols, m);
+      x.lineTo(m + (gw * i) / cols, h - m);
+      x.stroke();
+    }
+    for (let j = 0; j <= rows; j++) {
+      x.beginPath();
+      x.moveTo(m, m + (gh * j) / rows);
+      x.lineTo(w - m, m + (gh * j) / rows);
+      x.stroke();
+    }
+    x.strokeStyle = 'rgba(120,200,150,0.35)';
+    x.lineWidth = 2;
+    x.beginPath();
+    x.moveTo(w / 2, m);
+    x.lineTo(w / 2, h - m);
+    x.moveTo(m, h / 2);
+    x.lineTo(w - m, h / 2);
+    x.stroke();
+    x.strokeStyle = '#5cf59a';
+    x.shadowColor = 'rgba(92,245,154,0.8)';
+    x.shadowBlur = 10;
+    x.lineWidth = 3;
+    x.beginPath();
+    x.moveTo(m, h / 2);
+    x.lineTo(w - m, h / 2);
+    x.stroke();
+    x.shadowBlur = 0;
+    x.fillStyle = 'rgba(160,230,190,0.75)';
+    x.font = `600 ${0.075 * SS}px Consolas, "Courier New", monospace`;
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillText('SELECCIONE UNA ETAPA', w / 2, h / 2 - 0.14 * SS);
+  });
+  const frame = mesh(new RoundedBoxGeometry(SCR.w + 0.12, SCR.h + 0.12, 0.05, 3, 0.03), std('#121315', 0.6));
+  frame.position.set(SCR.x, cy + SCR.y, D / 2 + 0.06);
+  g.add(frame);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(SCR.w, SCR.h),
+    new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }));
+  screen.position.set(SCR.x, cy + SCR.y, D / 2 + 0.087);
+  g.add(screen);
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(SCR.w, SCR.h),
+    new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: 0.06, roughness: 0.05, metalness: 0.2 }));
+  glass.position.set(SCR.x, cy + SCR.y, D / 2 + 0.09);
+  g.add(glass);
+
+  for (const dx of [-0.42, 0.42]) {
+    const k = scopeKnob();
+    k.position.set(CTRL_X + dx, cy + 0.5, D / 2 + 0.04);
+    k.rotation.z = dx < 0 ? 0.6 : -0.4;
+    g.add(k);
+  }
+
+  g.userData.buttons = [];
+  STAGES.forEach((label, i) => {
+    const b = scopeButton(label);
+    b.position.set(CTRL_X + (i % 2 ? 0.38 : -0.38), cy - 0.22 - Math.floor(i / 2) * 0.42, D / 2 + 0.04);
+    g.add(b);
+    g.userData.buttons.push(b);
+  });
+
+  g.userData.screen = screen;
+  g.position.set(4.6, 0, -6.2);
+  return g;
+}
+
 /* ===== Montaje ===== */
 
 scene.add(buildTable());
@@ -843,6 +1018,9 @@ scene.add(buildLead(gen.v1, 18, 'f', 'v1', -3.6, [], [[colX(9), 0], [colX(18), 0
 scene.add(buildLead(gen.v3, 15, 'a', 'v3', -3.6, []));
 scene.add(buildLead(gen.v2, 21, 'a', 'v2', -3.6, []));
 scene.add(buildLead(gen.gnd, 26, 'T+', 'brown', -3.6, []));
+
+const scope = buildOscilloscope();
+scene.add(scope);
 scene.add(buildIC(14, 'LM324'));
 scene.add(buildResistor(100000, 'g', 28, 27));
 scene.add(buildJumper(29, 'j', 29, 'B-', 'brown'));
