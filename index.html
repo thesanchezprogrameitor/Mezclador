@@ -203,11 +203,11 @@ function buildTable() {
 
 function buildBoard() {
   const g = new THREE.Group();
-  const body = mesh(new RoundedBoxGeometry(16.5, 0.85, 5.3, 4, 0.08), std('#f6f6f1', 0.7));
+  const body = mesh(new RoundedBoxGeometry(17.3, 0.85, 5.3, 4, 0.08), std('#f6f6f1', 0.7));
   body.position.y = 0.425;
   g.add(body);
 
-  const BW = 16.34, BD = 5.14, S = 230;
+  const BW = 17.14, BD = 5.14, S = 230;
   const tex = canvasTex(Math.round(BW * S), Math.round(BD * S), (x, w, h) => {
     const toC = (px, pz) => [(px + BW / 2) * S, (pz + BD / 2) * S];
     x.fillStyle = '#f6f6f1';
@@ -222,7 +222,7 @@ function buildBoard() {
     const RD = '#e0413a', BL = '#2f66d8', BR = '#8a5a2b';
     const hline = (z, col) => {
       x.fillStyle = col;
-      x.fillRect(toC(-8.0, 0)[0], (z + BD / 2) * S - 0.018 * S, 16 * S, 0.036 * S);
+      x.fillRect(toC(-8.45, 0)[0], (z + BD / 2) * S - 0.018 * S, 16.9 * S, 0.036 * S);
     };
     hline(-1.76, BR);
     hline(-2.48, BL);
@@ -257,7 +257,7 @@ function buildBoard() {
       x.fillText(String(c), ...toC(colX(c), 1.6));
     }
 
-    const labelX = colX(6);
+    const labelX = -8.36;
     x.font = `700 ${0.14 * S}px Arial`;
     x.fillStyle = RD;
     x.fillText('+9 V', ...toC(labelX, ROWZ['B+']));
