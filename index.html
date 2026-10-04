@@ -240,7 +240,7 @@ function buildBoard() {
     };
     for (let c = 1; c <= 63; c++) {
       for (const r of 'abcdefghij') holeAt(colX(c), ROWZ[r]);
-      if (c % 6 !== 0 && c < 63) for (const r of ['B+', 'B-', 'T+', 'T-']) holeAt(colX(c), ROWZ[r]);
+      if (c >= 3 && c <= 61 && (c - 3) % 6 !== 5) for (const r of ['B+', 'B-', 'T+', 'T-']) holeAt(colX(c), ROWZ[r]);
     }
 
     x.textAlign = 'center';
@@ -534,7 +534,7 @@ scene.add(buildBoard());
 scene.add(buildIC(14, 'LM324'));
 scene.add(buildResistor(100000, 'g', 28, 27));
 scene.add(buildJumper(29, 'j', 29, 'B-', 'brown'));
-scene.add(buildJumper(30, 'j', 31, 'B+', 'orange', 0.11, [[30, 'B+']]));
+scene.add(buildJumper(30, 'j', 30, 'B+', 'orange'));
 scene.add(buildJumper(31, 'j', 31, 'B-', 'brown'));
 scene.add(buildResistorFlat(10000, 'h', 32, 18));
 scene.add(buildResistor(20000, 'g', 33, 32));
@@ -544,13 +544,13 @@ scene.add(buildJumper(40, 'f', 40, 'e', 'orange'));
 scene.add(buildResistor(20000, 'b', 28, 27));
 scene.add(buildResistorLaid(10000, holePos(28, 'a'), holePos(28, 'T+'), true));
 scene.add(buildJumper(29, 'd', 15, 'd', 'orange'));
-scene.add(buildJumper(30, 'a', 31, 'T-', 'orange', 0.11, [[30, 'T-']]));
+scene.add(buildJumper(30, 'a', 30, 'T-', 'orange'));
 scene.add(buildJumper(33, 'd', 32, 'd', 'orange'));
 scene.add(buildResistorFlat(10000, 'c', 31, 21));
 scene.add(buildResistorFlat(100000, 'c', 33, 40));
 scene.add(buildJumper(27, 'a', 35, 'a', 'orange', 0.45));
 scene.add(buildResistorFlat(100000, 'b', 35, 40));
-scene.add(buildJumper(62, 'B-', 62, 'T+', 'brown', 0.15));
+scene.add(buildJumper(61, 'B-', 61, 'T+', 'brown', 0.15));
 
 /* ===== Navegación ===== */
 
