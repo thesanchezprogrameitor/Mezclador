@@ -256,15 +256,6 @@ function buildBoard() {
       x.fillText(String(c), ...toC(colX(c), -1.6));
       x.fillText(String(c), ...toC(colX(c), 1.6));
     }
-    x.font = `700 ${0.16 * S}px Arial`;
-    for (const sx of [-8.1, 8.1]) {
-      x.fillStyle = RD;
-      x.fillText('+', ...toC(sx, ROWZ['T+']));
-      x.fillText('+', ...toC(sx, ROWZ['B+']));
-      x.fillStyle = BL;
-      x.fillText('−', ...toC(sx, ROWZ['T-']));
-      x.fillText('−', ...toC(sx, ROWZ['B-']));
-    }
   });
   const top = mesh(new THREE.PlaneGeometry(BW, BD), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }), false);
   top.rotation.x = -Math.PI / 2;
@@ -432,12 +423,45 @@ function buildResistor(ohms, row, colA, colB) {
   return g;
 }
 
+const WIRE_HEX = { brown: '#7b4a22' };
+const wireMats = {};
+const wireMat = name => wireMats[name] || (wireMats[name] = std(WIRE_HEX[name], 0.42, 0));
+
+function buildJumper(colA, rowA, colB, rowB, color) {
+  const g = new THREE.Group();
+  const a = holePos(colA, rowA);
+  const b = holePos(colB, rowB);
+  const SHEATH = 0.032, PIN = 0.016, RISE = 0.11, BASE = 0.012;
+  const hTop = BOARD_TOP + RISE;
+  const y0 = BOARD_TOP + BASE;
+  const bottomY = BOARD_TOP - 0.1;
+  const len = Math.hypot(b.x - a.x, b.z - a.z);
+  const rr = Math.min(0.045, len / 4);
+  const d = V(b.x - a.x, 0, b.z - a.z).normalize();
+
+  const path = new THREE.CurvePath();
+  path.add(new THREE.LineCurve3(V(a.x, y0, a.z), V(a.x, hTop - rr, a.z)));
+  path.add(new THREE.QuadraticBezierCurve3(V(a.x, hTop - rr, a.z), V(a.x, hTop, a.z), V(a.x + d.x * rr, hTop, a.z + d.z * rr)));
+  path.add(new THREE.LineCurve3(V(a.x + d.x * rr, hTop, a.z + d.z * rr), V(b.x - d.x * rr, hTop, b.z - d.z * rr)));
+  path.add(new THREE.QuadraticBezierCurve3(V(b.x - d.x * rr, hTop, b.z - d.z * rr), V(b.x, hTop, b.z), V(b.x, hTop - rr, b.z)));
+  path.add(new THREE.LineCurve3(V(b.x, hTop - rr, b.z), V(b.x, y0, b.z)));
+  g.add(mesh(new THREE.TubeGeometry(path, 120, SHEATH, 20, false), wireMat(color)));
+
+  for (const p of [a, b]) {
+    const pin = mesh(new THREE.CylinderGeometry(PIN, PIN, y0 + 0.02 - bottomY, 16), LEG_METAL);
+    pin.position.set(p.x, (y0 + 0.02 + bottomY) / 2, p.z);
+    g.add(pin);
+  }
+  return g;
+}
+
 /* ===== Montaje ===== */
 
 scene.add(buildTable());
 scene.add(buildBoard());
 scene.add(buildIC(14, 'LM324'));
 scene.add(buildResistor(100000, 'g', 28, 27));
+scene.add(buildJumper(29, 'j', 29, 'B-', 'brown'));
 
 /* ===== Navegación ===== */
 
