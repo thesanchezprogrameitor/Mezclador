@@ -219,14 +219,14 @@ function buildBoard() {
     x.fillRect(0, toC(0, -0.15)[1], w, 3);
     x.fillRect(0, toC(0, 0.15)[1] - 3, w, 3);
 
-    const RD = '#e0413a', BL = '#2f66d8';
+    const RD = '#e0413a', BL = '#2f66d8', BR = '#8a5a2b';
     const hline = (z, col) => {
       x.fillStyle = col;
       x.fillRect(toC(-8.0, 0)[0], (z + BD / 2) * S - 0.018 * S, 16 * S, 0.036 * S);
     };
-    hline(-1.76, RD);
+    hline(-1.76, BR);
     hline(-2.48, BL);
-    hline(1.76, BL);
+    hline(1.76, BR);
     hline(2.48, RD);
 
     const holeAt = (px, pz) => {
@@ -256,6 +256,32 @@ function buildBoard() {
       x.fillText(String(c), ...toC(colX(c), -1.6));
       x.fillText(String(c), ...toC(colX(c), 1.6));
     }
+
+    const labelX = colX(6);
+    x.font = `700 ${0.14 * S}px Arial`;
+    x.fillStyle = RD;
+    x.fillText('+9 V', ...toC(labelX, ROWZ['B+']));
+    x.fillStyle = BL;
+    x.fillText('−9 V', ...toC(labelX, ROWZ['T-']));
+
+    const groundSymbol = (px, pz) => {
+      const [u, v] = toC(px, pz);
+      x.strokeStyle = BR;
+      x.lineWidth = 0.016 * S;
+      x.lineCap = 'round';
+      const seg = (x1, y1, x2, y2) => {
+        x.beginPath();
+        x.moveTo(u + x1 * S, v + y1 * S);
+        x.lineTo(u + x2 * S, v + y2 * S);
+        x.stroke();
+      };
+      seg(0, -0.085, 0, -0.02);
+      seg(-0.07, -0.02, 0.07, -0.02);
+      seg(-0.045, 0.015, 0.045, 0.015);
+      seg(-0.02, 0.05, 0.02, 0.05);
+    };
+    groundSymbol(labelX, ROWZ['B-']);
+    groundSymbol(labelX, ROWZ['T+']);
   });
   const top = mesh(new THREE.PlaneGeometry(BW, BD), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }), false);
   top.rotation.x = -Math.PI / 2;
