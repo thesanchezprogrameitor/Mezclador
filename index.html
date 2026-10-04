@@ -16,9 +16,7 @@
   @keyframes svIn{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
   .sv-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;border-bottom:1px solid #22262d;background:#121418}
   .sv-title{display:flex;align-items:center;gap:12px;min-width:0}
-  .sv-tag{font:800 15px/1 "Segoe UI",system-ui,sans-serif;letter-spacing:.04em;padding:7px 10px;border-radius:6px;background:#2a2f37;color:#fff}
   .sv-title h1{margin:0;font:600 18px/1.2 "Segoe UI",system-ui,sans-serif;color:#e6e9ee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .sv-title small{display:block;font-weight:400;font-size:12.5px;color:#8b93a0;margin-top:2px}
   #svClose{display:flex;align-items:center;gap:8px;padding:9px 14px;border:1px solid #333944;border-radius:8px;background:#1b1f25;color:#e6e9ee;font:600 14px/1 "Segoe UI",system-ui,sans-serif;cursor:pointer}
   #svClose:hover{background:#262b33;border-color:#4a515d}
   #svClose:focus-visible{outline:2px solid #3fa9ff;outline-offset:2px}
@@ -27,21 +25,23 @@
   .sv-screen canvas{flex:1;width:100%;min-height:0;display:block}
   .sv-scale{display:flex;flex-wrap:wrap;gap:6px 18px;padding:9px 14px;border-top:1px solid #1f3a2b;font:600 12.5px/1.3 Consolas,"Courier New",monospace;color:#9ccfb2;background:#08170f}
   .sv-scale b{font-weight:700}
-  .sv-side{width:300px;flex:none;display:flex;flex-direction:column;gap:12px;overflow:auto}
-  .sv-card{border:1px solid #262b33;border-radius:10px;background:#14171c;padding:12px 14px}
+  .sv-side{width:250px;flex:none;display:flex;flex-direction:column;gap:10px;overflow:auto}
+  .sv-card{border:1px solid #262b33;border-radius:9px;background:#14171c;padding:10px 12px}
+  .sv-card h2{margin:0 0 6px;font:700 11.5px/1.2 "Segoe UI",system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#8b93a0}
+  .sv-probe{display:flex;align-items:center;gap:7px;font-size:13px;line-height:1.6;color:#d5dae2}
+  .sv-dot{width:9px;height:9px;border-radius:50%;flex:none}
   .sv-ch{cursor:pointer;user-select:none;transition:opacity .15s}
-  .sv-ch.off{opacity:.42}
-  .sv-ch-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  .sv-ch-name{display:flex;align-items:center;gap:8px;font:700 14px/1.2 "Segoe UI",system-ui,sans-serif}
-  .sv-dot{width:12px;height:12px;border-radius:50%}
-  .sv-ch-sub{font-size:12px;color:#8b93a0}
-  .sv-ch-tog{font-size:11.5px;color:#8b93a0}
-  .sv-rows{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:13.5px}
-  .sv-rows span:nth-child(odd){color:#9aa3b0}
-  .sv-rows span:nth-child(even){font:600 13.5px/1.35 Consolas,"Courier New",monospace;text-align:right;color:#f2f4f7}
-  .sv-card h2{margin:0 0 8px;font:700 13px/1.2 "Segoe UI",system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:#aab2bf}
-  .sv-formula{margin-top:8px;padding:8px 10px;border-radius:6px;background:#0f1216;font:600 13px/1.4 Consolas,"Courier New",monospace;color:#e6e9ee}
-  .sv-note{font-size:13.5px;line-height:1.5;color:#c9cfd8}
+  .sv-ch.off{opacity:.4}
+  .sv-ch:focus-visible{outline:2px solid #3fa9ff;outline-offset:2px}
+  .sv-ch-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+  .sv-ch-name{font:700 13.5px/1.2 "Segoe UI",system-ui,sans-serif}
+  .sv-ch-tog{font-size:11px;color:#8b93a0}
+  .sv-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .sv-cell{display:flex;flex-direction:column;gap:1px;padding:5px 8px;border-radius:6px;background:#0f1216}
+  .sv-cell span{font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:#7f8794}
+  .sv-cell b{font:700 14px/1.25 Consolas,"Courier New",monospace;color:#f2f4f7}
+  .sv-note{font-size:13px;line-height:1.5;color:#c9cfd8}
+  .sv-tag{font:800 15px/1 "Segoe UI",system-ui,sans-serif;letter-spacing:.04em;padding:7px 10px;border-radius:6px;background:#2a2f37;color:#fff}
   @media (max-width:820px){
     .sv-body{flex-direction:column;overflow:auto}
     .sv-screen{flex:none;height:56vh}
@@ -1107,16 +1107,13 @@ const COLOR_IN = '#f5d742', COLOR_OUT = '#3fa9ff';
 const STAGE_VIEW = {
   'U1:B': {
     title: 'Amplificador inversor',
-    sub: 'Entrada V1 · Salida en la pata 7',
     vdiv: 1,
     tdiv: 0.2e-3,
     channels: [
-      { name: 'CH1 · Entrada', where: 'V1 → R8 (columna 18)', color: COLOR_IN, amp: 1, f: 1000, phase: 0 },
-      { name: 'CH2 · Salida', where: 'Pata 7 del LM324', color: COLOR_OUT, amp: 2, f: 1000, phase: Math.PI },
+      { name: 'CH1 · Entrada', probe: 'En V1, antes de R8', color: COLOR_IN, amp: 1, f: 1000, phase: 0 },
+      { name: 'CH2 · Salida', probe: 'En la pata 7', color: COLOR_OUT, amp: 2, f: 1000, phase: Math.PI },
     ],
-    relation: [['Ganancia (Av)', '−2'], ['Desfase', '180°'], ['Frecuencia', 'no cambia']],
-    formula: 'Av = −R5 / R8\n   = −20 kΩ / 10 kΩ = −2',
-    note: 'U1:B es un amplificador inversor. La salida tiene el doble de amplitud que la entrada y está invertida: cuando la entrada sube, la salida baja. Por eso las dos ondas están desfasadas 180°.',
+    note: 'Es un amplificador inversor. La salida tiene el doble de amplitud que la entrada y está invertida: cuando la entrada sube, la salida baja. Por eso las dos ondas están desfasadas 180°.',
   },
 };
 
@@ -1147,46 +1144,52 @@ function el(tag, cls, text) {
 
 function buildSide(view) {
   sv.side.replaceChildren();
+
+  const probes = el('div', 'sv-card sv-probes');
+  probes.append(el('h2', '', 'Dónde se conecta'));
+  view.channels.forEach(ch => {
+    const line = el('div', 'sv-probe');
+    const dot = el('span', 'sv-dot');
+    dot.style.background = ch.color;
+    const label = el('b', '', `${ch.name.split('· ')[1]}:`);
+    label.style.color = ch.color;
+    line.append(dot, label, document.createTextNode(` ${ch.probe}`));
+    probes.append(line);
+  });
+  sv.side.append(probes);
+
   view.channels.forEach((ch, i) => {
     const card = el('div', 'sv-card sv-ch');
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
+    card.setAttribute('aria-pressed', 'true');
+    card.style.borderLeft = `3px solid ${ch.color}`;
     const head = el('div', 'sv-ch-head');
-    const name = el('div', 'sv-ch-name');
-    const dot = el('span', 'sv-dot');
-    dot.style.background = ch.color;
-    dot.style.boxShadow = `0 0 8px ${ch.color}`;
-    name.append(dot, el('span', '', ch.name));
+    const name = el('div', 'sv-ch-name', ch.name);
     name.style.color = ch.color;
     const tog = el('span', 'sv-ch-tog', 'Ocultar');
     head.append(name, tog);
-    const rows = el('div', 'sv-rows');
-    const add = (k, v) => rows.append(el('span', '', k), el('span', '', v));
-    add('Amplitud (Vp)', fmtV(ch.amp));
-    add('Pico a pico (Vpp)', fmtV(2 * ch.amp));
-    add('Eficaz (Vrms)', fmtV(ch.amp / Math.SQRT2));
+    const grid = el('div', 'sv-grid');
+    const add = (k, v) => {
+      const cell = el('div', 'sv-cell');
+      cell.append(el('span', '', k), el('b', '', v));
+      grid.append(cell);
+    };
+    add('Vp', fmtV(ch.amp));
+    add('Vpp', fmtV(2 * ch.amp));
+    add('Vrms', fmtV(ch.amp / Math.SQRT2));
     add('Frecuencia', fmtF(ch.f));
-    add('Período', fmtT(1 / ch.f));
-    card.append(head, el('div', 'sv-ch-sub', ch.where), rows);
-    card.querySelector('.sv-ch-sub').style.margin = '-4px 0 8px';
+    card.append(head, grid);
     const toggle = () => {
       svHidden[i] = !svHidden[i];
       card.classList.toggle('off', svHidden[i]);
+      card.setAttribute('aria-pressed', String(!svHidden[i]));
       tog.textContent = svHidden[i] ? 'Mostrar' : 'Ocultar';
     };
     card.addEventListener('click', toggle);
     card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
     sv.side.append(card);
   });
-
-  const rel = el('div', 'sv-card');
-  rel.append(el('h2', '', 'Entrada vs. salida'));
-  const rows = el('div', 'sv-rows');
-  view.relation.forEach(([k, v]) => rows.append(el('span', '', k), el('span', '', v)));
-  const formula = el('div', 'sv-formula', view.formula);
-  formula.style.whiteSpace = 'pre';
-  rel.append(rows, formula);
-  sv.side.append(rel);
 
   const note = el('div', 'sv-card');
   note.append(el('h2', '', 'Qué está pasando'), el('div', 'sv-note', view.note));
@@ -1333,7 +1336,7 @@ function openScope(stage) {
   svStage = stage;
   svHidden = view.channels.map(() => false);
   sv.tag.textContent = stage;
-  sv.title.replaceChildren(document.createTextNode(view.title), el('small', '', view.sub));
+  sv.title.textContent = view.title;
   buildSide(view);
   buildScale(view);
   sv.root.hidden = false;
