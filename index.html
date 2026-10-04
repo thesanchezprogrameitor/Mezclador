@@ -423,7 +423,7 @@ function buildResistor(ohms, row, colA, colB) {
   return g;
 }
 
-const WIRE_HEX = { brown: '#7b4a22', red: '#c4302b' };
+const WIRE_HEX = { brown: '#7b4a22', red: '#c4302b', orange: '#ec6208' };
 const wireMats = {};
 const wireMat = name => wireMats[name] || (wireMats[name] = std(WIRE_HEX[name], 0.42, 0));
 
@@ -474,7 +474,8 @@ scene.add(buildBoard());
 scene.add(buildIC(14, 'LM324'));
 scene.add(buildResistor(100000, 'g', 28, 27));
 scene.add(buildJumper(29, 'j', 29, 'B-', 'brown'));
-scene.add(buildJumper(30, 'j', 31, 'B+', 'red', 0.11, [[30, 'B+']]));
+scene.add(buildJumper(30, 'j', 31, 'B+', 'orange', 0.11, [[30, 'B+']]));
+scene.add(buildJumper(31, 'j', 31, 'B-', 'brown'));
 
 /* ===== Navegación ===== */
 
