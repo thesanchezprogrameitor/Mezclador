@@ -653,7 +653,7 @@ function buildPowerSupply() {
   return g;
 }
 
-const LEAD_HEX = { red: '#c4302b', black: '#1f2023' };
+const LEAD_HEX = { red: '#c4302b', black: '#1f2023', brown: '#7b4a22', v1: '#2f6fe0', v2: '#1f9d55', v3: '#8a4fd0' };
 
 function buildLead(tip, col, row, color, dropZ, route) {
   const g = new THREE.Group();
@@ -696,6 +696,131 @@ function buildLead(tip, col, row, color, dropZ, route) {
   return g;
 }
 
+/* ===== Generador de señales ===== */
+
+const CHANNELS = [
+  { id: 'v3', name: 'V3', vp: 1, freq: '3 kHz', cycles: 6 },
+  { id: 'v2', name: 'V2', vp: 2, freq: '500 Hz', cycles: 1 },
+  { id: 'v1', name: 'V1', vp: 1, freq: '1 kHz', cycles: 2 },
+];
+
+function buildSignalGenerator() {
+  const g = new THREE.Group();
+  const BAND_W = 3 * P * 2, GND_W = 4 * P;
+  const W = GND_W + BAND_W * CHANNELS.length + 0.2, H = 1.75, D = 2.0, FOOT = 0.06;
+  const cy = FOOT + H / 2;
+  const POST_Y = -0.52;
+
+  const body = mesh(new RoundedBoxGeometry(W, H, D, 4, 0.1), std('#c9ccd1', 0.45, 0.35));
+  body.position.y = cy;
+  g.add(body);
+
+  const bezel = mesh(new RoundedBoxGeometry(W - 0.12, H - 0.12, 0.06, 3, 0.03), std('#26292e', 0.55, 0.1));
+  bezel.position.set(0, cy, D / 2 + 0.01);
+  g.add(bezel);
+
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const foot = mesh(new THREE.CylinderGeometry(0.13, 0.15, FOOT, 20), std('#1a1a1a', 0.9));
+      foot.position.set(sx * (W / 2 - 0.35), FOOT / 2, sz * (D / 2 - 0.3));
+      g.add(foot);
+    }
+  }
+
+  const PW = W - 0.2, PH = H - 0.2, PS = 260;
+  const left = -PW / 2;
+  const bandX = i => left + GND_W + BAND_W * (i + 0.5);
+  const gndX = left + GND_W / 2;
+
+  const panel = canvasTex(Math.round(PW * PS), Math.round(PH * PS), (x, w, h) => {
+    const toP = (px, py) => [(px + PW / 2) * PS, (PH / 2 - py) * PS];
+    x.fillStyle = '#26292e';
+    x.fillRect(0, 0, w, h);
+    x.textBaseline = 'middle';
+
+    x.fillStyle = '#c7cbd2';
+    x.textAlign = 'left';
+    x.font = `700 ${0.1 * PS}px "Segoe UI", Arial, sans-serif`;
+    x.fillText('GENERADOR DE SEÑALES', ...toP(left + 0.12, 0.66));
+
+    x.strokeStyle = '#3d4148';
+    x.lineWidth = 3;
+    for (let i = 0; i <= CHANNELS.length; i++) {
+      const [lx] = toP(left + GND_W + BAND_W * i, 0);
+      x.beginPath();
+      x.moveTo(lx, toP(0, 0.5)[1]);
+      x.lineTo(lx, toP(0, -0.72)[1]);
+      x.stroke();
+    }
+
+    x.textAlign = 'center';
+    x.fillStyle = '#b07a46';
+    x.font = `700 ${0.085 * PS}px "Segoe UI", Arial, sans-serif`;
+    x.fillText('TIERRA', ...toP(gndX, 0.18));
+    const [gx, gy] = toP(gndX, -0.05);
+    x.strokeStyle = '#b07a46';
+    x.lineWidth = 0.022 * PS;
+    x.lineCap = 'round';
+    const seg = (x1, y1, x2, y2) => { x.beginPath(); x.moveTo(gx + x1 * PS, gy + y1 * PS); x.lineTo(gx + x2 * PS, gy + y2 * PS); x.stroke(); };
+    seg(0, -0.1, 0, -0.02);
+    seg(-0.09, -0.02, 0.09, -0.02);
+    seg(-0.058, 0.025, 0.058, 0.025);
+    seg(-0.026, 0.07, 0.026, 0.07);
+
+    CHANNELS.forEach((ch, i) => {
+      const cx = bandX(i);
+      const color = LEAD_HEX[ch.id];
+      const [tx, ty] = toP(cx - BAND_W / 2 + 0.08, 0.5);
+      x.fillStyle = color;
+      x.fillRect(tx, ty, (BAND_W - 0.16) * PS, 0.3 * PS);
+      x.fillStyle = '#ffffff';
+      x.font = `800 ${0.22 * PS}px "Segoe UI", Arial, sans-serif`;
+      x.fillText(ch.name, ...toP(cx, 0.35));
+
+      const lcdW = BAND_W - 0.24, lcdH = 0.5;
+      const [lx, ly] = toP(cx - lcdW / 2, 0.15);
+      x.fillStyle = '#0b0f0c';
+      x.fillRect(lx, ly, lcdW * PS, lcdH * PS);
+      x.strokeStyle = '#454a52';
+      x.lineWidth = 3;
+      x.strokeRect(lx, ly, lcdW * PS, lcdH * PS);
+
+      const waveTop = ly + 0.05 * PS, waveH = 0.2 * PS, waveL = lx + 0.08 * PS, waveW = (lcdW - 0.16) * PS;
+      x.strokeStyle = color;
+      x.lineWidth = 4;
+      x.shadowColor = color;
+      x.shadowBlur = 8;
+      x.beginPath();
+      for (let k = 0; k <= 160; k++) {
+        const u = k / 160;
+        const yv = waveTop + waveH / 2 - Math.sin(u * Math.PI * 2 * ch.cycles) * (waveH / 2) * (ch.vp / 2);
+        if (k === 0) x.moveTo(waveL + u * waveW, yv); else x.lineTo(waveL + u * waveW, yv);
+      }
+      x.stroke();
+      x.shadowBlur = 0;
+
+      x.fillStyle = '#e8ebef';
+      x.font = `700 ${0.125 * PS}px Consolas, "Courier New", monospace`;
+      x.fillText(`${ch.vp} Vp · ${ch.freq}`, lx + (lcdW * PS) / 2, ly + 0.37 * PS);
+    });
+  });
+  const face = decal(panel, PW, PH);
+  face.position.set(0, cy, D / 2 + 0.042);
+  g.add(face);
+
+  g.position.set(colX(10) - GND_W / 2 + (W - 0.2) / 2, 0, -6.2);
+  g.userData.posts = {};
+  const addPost = (key, px, color) => {
+    const post = bindingPost(color);
+    post.position.set(px, cy + POST_Y, D / 2 + 0.04);
+    g.add(post);
+    g.userData.posts[key] = post.position.clone().add(g.position).setZ(g.position.z + D / 2 + 0.04 + 0.336);
+  };
+  addPost('gnd', gndX, '#7b4a22');
+  CHANNELS.forEach((ch, i) => addPost(ch.id, bandX(i), LEAD_HEX[ch.id]));
+  return g;
+}
+
 /* ===== Montaje ===== */
 
 scene.add(buildTable());
@@ -707,6 +832,14 @@ scene.add(buildLead(posts['1+'], 3, 'T+', 'red', -3.3, [[colX(3), -3.3]]));
 scene.add(buildLead(posts['1-'], 4, 'T-', 'black', -3.55, [[colX(4), -3.55]]));
 scene.add(buildLead(posts['2-'], 3, 'B-', 'black', -3.8, [[-12.35, -3.8], [-12.35, 3.3], [colX(3), 3.3]]));
 scene.add(buildLead(posts['2+'], 4, 'B+', 'red', -4.02, [[-12.6, -4.02], [-12.6, 3.55], [colX(4), 3.55]]));
+
+const generator = buildSignalGenerator();
+scene.add(generator);
+const gen = generator.userData.posts;
+scene.add(buildLead(gen.gnd, 10, 'T+', 'brown', -3.6, []));
+scene.add(buildLead(gen.v3, 15, 'a', 'v3', -3.6, []));
+scene.add(buildLead(gen.v2, 21, 'a', 'v2', -3.6, []));
+scene.add(buildLead(gen.v1, 18, 'j', 'v1', -4.1, [[9.1, -4.1], [9.1, 3.1], [colX(18), 3.1]]));
 scene.add(buildIC(14, 'LM324'));
 scene.add(buildResistor(100000, 'g', 28, 27));
 scene.add(buildJumper(29, 'j', 29, 'B-', 'brown'));
