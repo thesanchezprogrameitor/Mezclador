@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; img-src data: blob:; connect-src https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Laboratorio 3 · Mezclador</title>
+<style>
+  [hidden]{display:none!important}
+  html,body{margin:0;height:100%;background:#fff;overflow:hidden;font:14px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
+  #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  #loading{position:fixed;inset:0;display:grid;place-items:center;background:#fff;font-weight:600;color:#667085}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="loading">Cargando escena 3D…</div>
+
+<script>
+  setTimeout(function () {
+    var l = document.getElementById('loading');
+    if (l && !l.hidden) l.textContent = 'No se pudo cargar Three.js. Revisa tu conexión a internet y recarga.';
+  }, 12000);
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ===== Renderer y escena ===== */
+
+const PIX_MAX = Math.min(devicePixelRatio, 2);
+const PIX_MIN = 1.25;
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(PIX_MAX);
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#ffffff');
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+/* ===== Cámara y controles ===== */
+
+const camera =new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.05, 400);
+const HOME = { pos: new THREE.Vector3(0, 16.5, 20.5), target: new THREE.Vector3(0, -0.6, 0) };
+camera.position.copy(HOME.pos);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(HOME.target);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 1.2;
+controls.maxDistance = 55;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.zoomToCursor = true;
+controls.screenSpacePanning = true;
+controls.zoomSpeed = 0.6;
+controls.rotateSpeed = 0.45;
+controls.panSpeed = 0.8;
+
+const LIM = { x: [-16, 16], y: [-1.5, 6], z: [-10, 10] };
+function clampTarget() {
+  const t = controls.target;
+  t.x = THREE.MathUtils.clamp(t.x, LIM.x[0], LIM.x[1]);
+  t.y = THREE.MathUtils.clamp(t.y, LIM.y[0], LIM.y[1]);
+  t.z = THREE.MathUtils.clamp(t.z, LIM.z[0], LIM.z[1]);
+}
+
+/* ===== Luces ===== */
+
+scene.add(new THREE.HemisphereLight('#ffffff', '#e9dcc8', 0.53));
+const sun = new THREE.DirectionalLight('#fff4e6', 2.0);
+sun.position.set(6.6, 21, 14.4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 18, bottom: -18, near: 1, far: 90 });
+sun.shadow.camera.updateProjectionMatrix();
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.02;
+sun.shadow.radius = 3;
+sun.shadow.autoUpdate = false;
+sun.shadow.needsUpdate = true;
+scene.add(sun);
+const fill = new THREE.DirectionalLight('#dfe8ff', 0.42);
+fill.position.set(-16, 9, -8);
+scene.add(fill);
+
+/* ===== Utilidades ===== */
+
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const std = (color, roughness = 0.5, metalness = 0, extra = {}) =>
+  new THREE.MeshStandardMaterial({ color, roughness, metalness, ...extra });
+
+function mesh(geo, mat, cast = true) {
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = cast;
+  m.receiveShadow = true;
+  return m;
+}
+
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+
+function decal(tex, w, h) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+    new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  return m;
+}
+
+/* ===== Coordenadas de la protoboard ===== */
+
+const P = 0.254;
+const BOARD_TOP = 0.85;
+const colX = c => (c - 32) * P;
+const ROWZ = {
+  a: 1.416, b: 1.162, c: 0.908, d: 0.654, e: 0.4, f: -0.4, g: -0.654, h: -0.908, i: -1.162, j: -1.416,
+  'B-': 2.0, 'B+': 2.254, 'T+': -2.0, 'T-': -2.254,
+};
+
+/* ===== Mesa ===== */
+
+const TABLE_W = 32;
+const TABLE_D = 20;
+
+function buildTable() {
+  const wood = canvasTex(2048, 1024, (x, w, h) => {
+    x.fillStyle = '#c8935b';
+    x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 420; i++) {
+      const y = Math.random() * h;
+      x.strokeStyle = Math.random() < 0.8
+        ? `rgba(95,55,22,${0.04 + Math.random() * 0.1})`
+        : `rgba(255,225,180,${0.06 + Math.random() * 0.08})`;
+      x.lineWidth = 1 + Math.random() * 3.5;
+      x.beginPath();
+      for (let px = 0; px <= w; px += 16) x.lineTo(px, y + Math.sin(px * 0.004 + i) * 7 + Math.sin(px * 0.017 + i * 2) * 2);
+      x.stroke();
+    }
+  });
+  const g = new THREE.Group();
+  const top = mesh(new THREE.BoxGeometry(TABLE_W, 0.8, TABLE_D), std('#ffffff', 0.62, 0, { map: wood, bumpMap: wood, bumpScale: 0.035 }), false);
+  top.position.set(0, -0.4, 0);
+  g.add(top);
+
+  const legMat = std('#8d5f36', 0.6);
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const leg = mesh(new THREE.BoxGeometry(0.9, 12, 0.9), legMat);
+      leg.position.set(sx * (TABLE_W / 2 - 1.2), -6.8, sz * (TABLE_D / 2 - 1.2));
+      g.add(leg);
+    }
+  }
+
+  const radial = (inner, a0, a1) => canvasTex(256, 256, (x, w, h) => {
+    const gr = x.createRadialGradient(w / 2, h / 2, w * inner, w / 2, h / 2, w / 2);
+    gr.addColorStop(0, `rgba(0,0,0,${a0})`);
+    gr.addColorStop(0.55, `rgba(0,0,0,${a1})`);
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = gr;
+    x.fillRect(0, 0, w, h);
+  });
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(TABLE_W + 18, TABLE_D + 14),
+    new THREE.MeshBasicMaterial({ map: radial(0.04, 0.18, 0.08), transparent: true, depthWrite: false }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, -12.8, 0);
+  g.add(floor);
+
+  const contact = new THREE.Mesh(new THREE.PlaneGeometry(19, 7.5),
+    new THREE.MeshBasicMaterial({ map: radial(0.12, 0.4, 0.14), transparent: true, depthWrite: false }));
+  contact.rotation.x = -Math.PI / 2;
+  contact.position.set(0, 0.012, 0);
+  contact.renderOrder = -1;
+  g.add(contact);
+  return g;
+}
+
+/* ===== Protoboard ===== */
+
+function buildBoard() {
+  const g = new THREE.Group();
+  const body = mesh(new RoundedBoxGeometry(16.5, 0.85, 5.3, 4, 0.08), std('#f6f6f1', 0.7));
+  body.position.y = 0.425;
+  g.add(body);
+
+  const BW = 16.34, BD = 5.14, S = 230;
+  const tex = canvasTex(Math.round(BW * S), Math.round(BD * S), (x, w, h) => {
+    const toC = (px, pz) => [(px + BW / 2) * S, (pz + BD / 2) * S];
+    x.fillStyle = '#f6f6f1';
+    x.fillRect(0, 0, w, h);
+
+    x.fillStyle = '#e3e3db';
+    x.fillRect(0, toC(0, -0.15)[1], w, 0.3 * S);
+    x.fillStyle = '#cfcfc6';
+    x.fillRect(0, toC(0, -0.15)[1], w, 3);
+    x.fillRect(0, toC(0, 0.15)[1] - 3, w, 3);
+
+    const RD = '#e0413a', BL = '#2f66d8';
+    const hline = (z, col) => {
+      x.fillStyle = col;
+      x.fillRect(toC(-8.0, 0)[0], (z + BD / 2) * S - 0.018 * S, 16 * S, 0.036 * S);
+    };
+    hline(-1.76, RD);
+    hline(-2.48, BL);
+    hline(1.76, BL);
+    hline(2.48, RD);
+
+    const holeAt = (px, pz) => {
+      const [u, v] = toC(px, pz), s = 0.1 * S;
+      x.fillStyle = '#cdcdc5';
+      x.fillRect(u - s / 2 - 3, v - s / 2 - 3, s + 6, s + 6);
+      x.fillStyle = '#2b2b2b';
+      x.fillRect(u - s / 2, v - s / 2, s, s);
+      x.fillStyle = '#5a5a5a';
+      x.fillRect(u - s / 2, v - s / 2, s, 4);
+    };
+    for (let c = 1; c <= 63; c++) {
+      for (const r of 'abcdefghij') holeAt(colX(c), ROWZ[r]);
+      if (c % 6 !== 0 && c < 63) for (const r of ['B+', 'B-', 'T+', 'T-']) holeAt(colX(c), ROWZ[r]);
+    }
+
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.font = `600 ${0.13 * S}px Arial`;
+    x.fillStyle = '#8a8a84';
+    for (const r of 'abcdefghij') {
+      x.fillText(r, ...toC(-8.1, ROWZ[r]));
+      x.fillText(r, ...toC(8.1, ROWZ[r]));
+    }
+    x.font = `600 ${0.11 * S}px Arial`;
+    for (const c of [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]) {
+      x.fillText(String(c), ...toC(colX(c), -1.6));
+      x.fillText(String(c), ...toC(colX(c), 1.6));
+    }
+    x.font = `700 ${0.16 * S}px Arial`;
+    for (const sx of [-8.1, 8.1]) {
+      x.fillStyle = RD;
+      x.fillText('+', ...toC(sx, ROWZ['T+']));
+      x.fillText('+', ...toC(sx, ROWZ['B+']));
+      x.fillStyle = BL;
+      x.fillText('−', ...toC(sx, ROWZ['T-']));
+      x.fillText('−', ...toC(sx, ROWZ['B-']));
+    }
+  });
+  const top = mesh(new THREE.PlaneGeometry(BW, BD), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }), false);
+  top.rotation.x = -Math.PI / 2;
+  top.position.y = BOARD_TOP + 0.0015;
+  g.add(top);
+
+  const brandTex = canvasTex(2048, 112, (x, w) => {
+    const a = 'UNA PIEZA ORIGINAL DE';
+    const b = 'SÁNCHEZ PROGRAMEITOR';
+    const fa = '500 38px "Segoe UI", Arial, sans-serif';
+    const fb = '800 46px "Segoe UI", Arial, sans-serif';
+    const spacing = s => { if ('letterSpacing' in x) x.letterSpacing = s; };
+    x.font = fa; spacing('5px');
+    const wa = x.measureText(a).width;
+    x.font = fb; spacing('7px');
+    const wb = x.measureText(b).width;
+    const gap = 34, start = (w - (wa + gap + wb)) / 2, mid = 58;
+    x.textAlign = 'left';
+    x.textBaseline = 'middle';
+    x.font = fa; spacing('5px'); x.fillStyle = '#9a9a93';
+    x.fillText(a, start, mid);
+    x.font = fb; spacing('7px'); x.fillStyle = '#7a7a73';
+    x.fillText(b, start + wa + gap, mid);
+  });
+  const brand = decal(brandTex, 8.4, 8.4 * 112 / 2048);
+  brand.position.set(0, 0.425, 2.652);
+  g.add(brand);
+  return g;
+}
+
+/* ===== Montaje ===== */
+
+scene.add(buildTable());
+scene.add(buildBoard());
+
+/* ===== Navegación ===== */
+
+const sphA = new THREE.Spherical(), sphB = new THREE.Spherical(), sphC = new THREE.Spherical();
+const tmpOff = new THREE.Vector3();
+let fly = null;
+let needsRender = true;
+
+function flyTo(pos, target, dur = 0.9, mode = 'io') {
+  fly = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: target.clone(), k: 0, dur, mode };
+}
+
+function stepFly(dt) {
+  fly.k = Math.min(1, fly.k + dt / fly.dur);
+  const k = fly.k;
+  const e = fly.mode === 'out' ? 1 - Math.pow(1 - k, 4) : (k < 0.5 ? 4 * k ** 3 : 1 - Math.pow(-2 * k + 2, 3) / 2);
+  controls.target.lerpVectors(fly.t0, fly.t1, e);
+  sphA.setFromVector3(tmpOff.copy(fly.p0).sub(fly.t0));
+  sphB.setFromVector3(tmpOff.copy(fly.p1).sub(fly.t1));
+  let dTheta = sphB.theta - sphA.theta;
+  while (dTheta > Math.PI) dTheta -= Math.PI * 2;
+  while (dTheta < -Math.PI) dTheta += Math.PI * 2;
+  sphC.set(
+    THREE.MathUtils.lerp(sphA.radius, sphB.radius, e),
+    THREE.MathUtils.lerp(sphA.phi, sphB.phi, e),
+    sphA.theta + dTheta * e);
+  camera.position.copy(controls.target).add(tmpOff.setFromSpherical(sphC));
+  if (fly.k >= 1) fly = null;
+}
+
+controls.addEventListener('start', () => { fly = null; });
+controls.addEventListener('change', () => { needsRender = true; });
+
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+canvas.addEventListener('dblclick', e => {
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(scene.children, true)[0];
+  if (!hit) return;
+  const d = camera.position.distanceTo(controls.target);
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  flyTo(hit.point.clone().addScaledVector(dir, d), hit.point.clone(), 0.5);
+});
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  needsRender = true;
+});
+
+/* ===== Rendimiento ===== */
+
+let pixR = PIX_MAX, frameAcc = 0, frameN = 0;
+function adaptResolution(dt) {
+  if (dt < 0.06 && document.visibilityState === 'visible') {
+    frameAcc += dt;
+    frameN++;
+  }
+  if (frameN < 40) return;
+  const avg = frameAcc / frameN;
+  frameAcc = 0;
+  frameN = 0;
+  if (avg > 0.028 && pixR > PIX_MIN) {
+    pixR = Math.max(PIX_MIN, pixR - 0.25);
+    renderer.setPixelRatio(pixR);
+  } else if (avg < 0.0135 && pixR < PIX_MAX) {
+    pixR = Math.min(PIX_MAX, pixR + 0.25);
+    renderer.setPixelRatio(pixR);
+  }
+}
+
+/* ===== Bucle principal ===== */
+
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (fly) stepFly(dt);
+  controls.update();
+  if (!fly) clampTarget();
+  if (!fly && !needsRender) return;
+  needsRender = false;
+  renderer.render(scene, camera);
+  adaptResolution(dt);
+}
+
+camera.position.set(HOME.pos.x + 5, HOME.pos.y * 1.45, HOME.pos.z * 1.3);
+flyTo(HOME.pos.clone(), HOME.target.clone(), 2.2, 'out');
+animate();
+document.getElementById('loading').hidden = true;
+</script>
+</body>
+</html>
