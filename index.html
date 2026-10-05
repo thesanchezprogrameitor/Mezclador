@@ -12,6 +12,19 @@
   #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
   #loading{position:fixed;inset:0;display:grid;place-items:center;background:#fff;font-weight:600;color:#667085}
 
+  #btnExplode{position:fixed;left:16px;top:16px;z-index:10;padding:9px 14px;border:1px solid #e1e4e8;border-radius:10px;background:rgba(255,255,255,.95);color:#1f2933;font:600 13.5px/1 "Segoe UI",system-ui,sans-serif;box-shadow:0 4px 14px rgba(15,23,42,.08);cursor:pointer}
+  #btnExplode:hover{border-color:#c7cfdd;background:#f7f9fc}
+  #btnExplode[aria-pressed="true"]{background:#2563eb;border-color:#2563eb;color:#fff}
+  #btnExplode:focus-visible,#infoClose:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+  #info{position:fixed;right:16px;top:16px;z-index:10;width:320px;max-height:calc(100vh - 32px);overflow:auto;padding:15px 17px;border:1px solid #e1e4e8;border-radius:14px;background:rgba(255,255,255,.96);color:#14171f;box-shadow:0 8px 30px rgba(20,23,31,.1)}
+  #infoClose{position:absolute;right:8px;top:8px;display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:8px;background:none;color:#667085;cursor:pointer}
+  #infoClose:hover{background:#f2f4f7;color:#14171f}
+  #info .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:#eef2ff;color:#3730a3}
+  #info h2{margin:8px 28px 4px 0;font-size:18px;line-height:1.25}
+  #info p{margin:0;font-size:14px;line-height:1.5;color:#344054}
+  #info .tip{margin-top:10px;padding:8px 11px;border-radius:10px;background:#fff7e6;border:1px solid #fde3a7;font-size:13px;color:#5c4100}
+  @media (max-width:820px){#info{left:12px;right:12px;top:62px;width:auto;max-height:42vh}#btnExplode{left:12px;top:12px}}
+
   #notes{position:fixed;left:16px;bottom:16px;z-index:10;display:flex;flex-direction:column;gap:8px;max-width:min(430px,calc(100vw - 32px));pointer-events:none}
   .note{padding:9px 13px;border-radius:9px;font-size:13.5px;line-height:1.45;background:rgba(255,255,255,.93);color:#1f2933;border:1px solid #e1e4e8;box-shadow:0 4px 14px rgba(15,23,42,.08)}
   .note-info b{color:#2563eb}
@@ -69,6 +82,18 @@
 <body>
 <canvas id="c"></canvas>
 <div id="loading">Cargando escena 3D…</div>
+
+<button id="btnExplode" type="button" aria-pressed="false">Vista explosionada</button>
+
+<aside id="info" hidden aria-live="polite">
+  <button id="infoClose" type="button" aria-label="Cerrar">
+    <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <span class="tag" id="infoTag"></span>
+  <h2 id="infoName"></h2>
+  <p id="infoDesc"></p>
+  <div class="tip" id="infoTip"></div>
+</aside>
 
 <div id="notes" aria-live="polite">
   <div class="note note-info"><b>Nota:</b> El osciloscopio funciona, para ver una onda presiona el botón según corresponda.</div>
@@ -1132,46 +1157,108 @@ function buildOscilloscope() {
 
 /* ===== Montaje ===== */
 
+const PARTS = [];
+const partById = {};
+const pickables = [];
+
+function addPart(meta, ...objects) {
+  const g = new THREE.Group();
+  objects.forEach(o => g.add(o));
+  const cache = new Map();
+  const swap = m => { if (!cache.has(m.uuid)) cache.set(m.uuid, m.clone()); return cache.get(m.uuid); };
+  g.traverse(o => {
+    if (!o.isMesh) return;
+    o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
+    o.userData.partId = meta.id;
+    pickables.push(o);
+  });
+  const part = { explode: 0, tip: '', ...meta, group: g };
+  PARTS.push(part);
+  partById[meta.id] = part;
+  scene.add(g);
+  return part;
+}
+
 scene.add(buildTable());
-scene.add(buildBoard());
+addPart({ id: 'board', tag: 'Base', name: 'Protoboard',
+  desc: 'Es la base del circuito. Cada columna une sus cinco agujeros por dentro. Arriba y abajo están los rieles de +9 V, −9 V y tierra.' },
+  buildBoard());
+
 const supply = buildPowerSupply();
-scene.add(supply);
 const posts = supply.userData.posts;
-scene.add(buildLead(posts['1+'], 3, 'T+', 'red', -3.3, [[colX(3), -3.3]]));
-scene.add(buildLead(posts['1-'], 4, 'T-', 'black', -3.55, [[colX(4), -3.55]]));
-scene.add(buildLead(posts['2-'], 3, 'B-', 'black', -3.8, [[-12.35, -3.8], [-12.35, 3.3], [colX(3), 3.3]]));
-scene.add(buildLead(posts['2+'], 4, 'B+', 'red', -4.02, [[-12.6, -4.02], [-12.6, 3.55], [colX(4), 3.55]]));
+addPart({ id: 'supply', tag: 'Alimentación', name: 'Fuente DC de ±9 V',
+  desc: 'Tiene dos salidas de 9 V conectadas en serie. El punto del medio va a tierra, y así la protoboard recibe +9 V y −9 V.',
+  tip: 'Arranca apagada: préndela con el botón OFF.' },
+  supply,
+  buildLead(posts['1+'], 3, 'T+', 'red', -3.3, [[colX(3), -3.3]]),
+  buildLead(posts['1-'], 4, 'T-', 'black', -3.55, [[colX(4), -3.55]]),
+  buildLead(posts['2-'], 3, 'B-', 'black', -3.8, [[-12.35, -3.8], [-12.35, 3.3], [colX(3), 3.3]]),
+  buildLead(posts['2+'], 4, 'B+', 'red', -4.02, [[-12.6, -4.02], [-12.6, 3.55], [colX(4), 3.55]]));
 
 const generator = buildSignalGenerator();
-scene.add(generator);
 const gen = generator.userData.posts;
-scene.add(buildLead(gen.v1, 18, 'f', 'v1', -3.6, [], [[colX(9), 0], [colX(18), 0]]));
-scene.add(buildLead(gen.v3, 15, 'a', 'v3', -3.6, []));
-scene.add(buildLead(gen.v2, 21, 'a', 'v2', -3.6, []));
-scene.add(buildLead(gen.gnd, 26, 'T+', 'brown', -3.6, []));
+addPart({ id: 'generator', tag: 'Señales de entrada', name: 'Generador de señales',
+  desc: 'Entrega las tres señales senoidales que se van a mezclar: V1, V2 y V3. Cada cable tiene el color de su canal.' },
+  generator,
+  buildLead(gen.v1, 18, 'f', 'v1', -3.6, [], [[colX(9), 0], [colX(18), 0]]),
+  buildLead(gen.v3, 15, 'a', 'v3', -3.6, []),
+  buildLead(gen.v2, 21, 'a', 'v2', -3.6, []),
+  buildLead(gen.gnd, 26, 'T+', 'brown', -3.6, []));
 
 const scope = buildOscilloscope();
-scene.add(scope);
-scene.add(buildIC(14, 'LM324'));
-scene.add(buildResistor(100000, 'g', 28, 27));
-scene.add(buildJumper(29, 'j', 29, 'B-', 'brown'));
-scene.add(buildJumper(30, 'j', 31, 'B+', 'orange', 0.11, [[30, 'B+']]));
-scene.add(buildJumper(31, 'j', 31, 'B-', 'brown'));
-scene.add(buildResistorFlat(10000, 'h', 32, 18));
-scene.add(buildResistor(20000, 'g', 33, 32));
-scene.add(buildResistorFlat(100000, 'j', 33, 40));
-scene.add(buildJumper(28, 'i', 40, 'i', 'orange'));
-scene.add(buildJumper(40, 'f', 40, 'e', 'orange'));
-scene.add(buildResistor(20000, 'b', 28, 27));
-scene.add(buildResistorLaid(10000, holePos(28, 'a'), holePos(28, 'T+'), true));
-scene.add(buildJumper(29, 'd', 15, 'd', 'orange'));
-scene.add(buildJumper(30, 'a', 31, 'T-', 'orange', 0.11, [[30, 'T-']]));
-scene.add(buildJumper(33, 'd', 32, 'd', 'orange'));
-scene.add(buildResistorFlat(10000, 'c', 31, 21));
-scene.add(buildResistorFlat(100000, 'c', 33, 40));
-scene.add(buildJumper(27, 'a', 35, 'a', 'orange', 0.45));
-scene.add(buildResistorFlat(100000, 'b', 35, 40));
-scene.add(buildJumper(63, 'B-', 63, 'T+', 'brown', 0.15));
+addPart({ id: 'scope', tag: 'Medición', name: 'Osciloscopio',
+  desc: 'Muestra la entrada y la salida de cada etapa del circuito.',
+  tip: 'Prende la fuente y presiona U1:A, U1:B, U1:C o U1:D.' },
+  scope);
+
+addPart({ id: 'u1', tag: 'Amplificador', name: 'U1 · LM324', explode: 1.7,
+  desc: 'Trae cuatro amplificadores operacionales en un solo chip: U1:A, U1:B, U1:C y U1:D. Cada uno hace una etapa del mezclador.',
+  tip: 'La muesca y el punto marcan la pata 1.' },
+  buildIC(14, 'LM324'));
+
+addPart({ id: 'r8', tag: 'Entrada de V1', name: 'R8 · Resistencia 10 kΩ', explode: 2.3,
+  desc: 'Lleva la señal V1 a la entrada de U1:B. Junto con R5 decide cuánto se amplifica.' },
+  buildResistorFlat(10000, 'h', 32, 18));
+addPart({ id: 'r5', tag: 'Realimentación', name: 'R5 · Resistencia 20 kΩ', explode: 2.6,
+  desc: 'Devuelve parte de la salida de U1:B a su entrada. Como vale el doble de R8, la señal sale al doble y al revés.' },
+  buildResistor(20000, 'g', 33, 32));
+addPart({ id: 'r1', tag: 'Hacia el sumador', name: 'R1 · Resistencia 100 kΩ', explode: 2.1,
+  desc: 'Lleva la salida de U1:B al punto donde se juntan las tres señales.' },
+  buildResistorFlat(100000, 'j', 33, 40));
+
+addPart({ id: 'r9', tag: 'Entrada de V2', name: 'R9 · Resistencia 10 kΩ', explode: 2.3,
+  desc: 'Lleva la señal V2 a la entrada de U1:C. Como U1:C es un seguidor, casi no pasa corriente por ella.' },
+  buildResistorFlat(10000, 'c', 31, 21));
+addPart({ id: 'r2', tag: 'Hacia el sumador', name: 'R2 · Resistencia 100 kΩ', explode: 2.1,
+  desc: 'Lleva la salida de U1:C al punto donde se juntan las tres señales.' },
+  buildResistorFlat(100000, 'c', 33, 40));
+
+addPart({ id: 'r6', tag: 'A tierra', name: 'R6 · Resistencia 10 kΩ', explode: 2.4,
+  desc: 'Une la entrada inversora de U1:D con tierra. Junto con R7 fija cuánto se amplifica V3.' },
+  buildResistorLaid(10000, holePos(28, 'a'), holePos(28, 'T+'), true));
+addPart({ id: 'r7', tag: 'Realimentación', name: 'R7 · Resistencia 20 kΩ', explode: 2.6,
+  desc: 'Une la salida de U1:D con su entrada inversora. Con R6 hace que V3 salga al triple y sin invertirse.' },
+  buildResistor(20000, 'b', 28, 27));
+addPart({ id: 'r3', tag: 'Hacia el sumador', name: 'R3 · Resistencia 100 kΩ', explode: 2.1,
+  desc: 'Lleva la salida de U1:D al punto donde se juntan las tres señales.' },
+  buildResistorFlat(100000, 'b', 35, 40));
+
+addPart({ id: 'r4', tag: 'Realimentación', name: 'R4 · Resistencia 100 kΩ', explode: 2.6,
+  desc: 'Une la salida y la entrada de U1:A. Como vale lo mismo que R1, R2 y R3, cada señal entra a la mezcla sin cambiar de tamaño.' },
+  buildResistor(100000, 'g', 28, 27));
+
+addPart({ id: 'wires', tag: 'Conexiones', name: 'Cables de la protoboard', explode: 1.1,
+  desc: 'Unen columnas que por dentro no se tocan. Los cafés van a tierra; los naranjas llevan la alimentación y las señales.' },
+  buildJumper(29, 'j', 29, 'B-', 'brown'),
+  buildJumper(30, 'j', 31, 'B+', 'orange', 0.11, [[30, 'B+']]),
+  buildJumper(31, 'j', 31, 'B-', 'brown'),
+  buildJumper(28, 'i', 40, 'i', 'orange'),
+  buildJumper(40, 'f', 40, 'e', 'orange'),
+  buildJumper(29, 'd', 15, 'd', 'orange'),
+  buildJumper(30, 'a', 31, 'T-', 'orange', 0.11, [[30, 'T-']]),
+  buildJumper(33, 'd', 32, 'd', 'orange'),
+  buildJumper(27, 'a', 35, 'a', 'orange', 0.45),
+  buildJumper(63, 'B-', 63, 'T+', 'brown', 0.15));
 
 /* ===== Pantalla del osciloscopio ===== */
 
@@ -1522,6 +1609,88 @@ function pressButton(group) {
   setTimeout(() => { group.position.z += 0.035; needsRender = true; }, 140);
 }
 
+/* ===== Piezas: información y vista explosionada ===== */
+
+const info = {
+  root: document.getElementById('info'),
+  tag: document.getElementById('infoTag'),
+  name: document.getElementById('infoName'),
+  desc: document.getElementById('infoDesc'),
+  tip: document.getElementById('infoTip'),
+};
+const btnExplode = document.getElementById('btnExplode');
+let selected = null, hovered = null, exploded = false, explodeT = 99;
+const lifted = PARTS.filter(p => p.explode > 0);
+
+function setEmissive(part, intensity) {
+  part.group.traverse(o => {
+    if (!o.isMesh) return;
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+      if (!m.emissive) return;
+      m.emissive.set(intensity ? '#2f6bff' : '#000000');
+      m.emissiveIntensity = intensity;
+    });
+  });
+}
+
+let shownSel = null, shownHov = null;
+function applyHighlight() {
+  for (const id of new Set([shownSel, shownHov, selected, hovered])) {
+    if (!id) continue;
+    setEmissive(partById[id], id === selected ? 0.13 : id === hovered ? 0.06 : 0);
+  }
+  shownSel = selected;
+  shownHov = hovered;
+  needsRender = true;
+}
+
+function select(id) {
+  if (id === selected) return;
+  selected = id;
+  applyHighlight();
+  if (!id) { info.root.hidden = true; return; }
+  const p = partById[id];
+  info.tag.textContent = p.tag;
+  info.name.textContent = p.name;
+  info.desc.textContent = p.desc;
+  info.tip.textContent = p.tip;
+  info.tip.hidden = !p.tip;
+  info.root.hidden = false;
+}
+
+function setHover(id) {
+  if (id === 'board') id = null;
+  if (id === hovered) return;
+  hovered = id;
+  applyHighlight();
+}
+
+document.getElementById('infoClose').addEventListener('click', () => select(null));
+
+btnExplode.addEventListener('click', () => {
+  exploded = !exploded;
+  explodeT = 0;
+  btnExplode.setAttribute('aria-pressed', String(exploded));
+  btnExplode.textContent = exploded ? 'Volver a armar' : 'Vista explosionada';
+});
+
+function stepExplode(dt) {
+  explodeT += dt;
+  let moving = false;
+  const k = 1 - Math.exp(-dt * 7);
+  lifted.forEach((p, i) => {
+    const delay = (exploded ? i : lifted.length - 1 - i) * 0.05;
+    if (explodeT < delay) { moving = true; return; }
+    const target = exploded ? p.explode : 0;
+    const diff = target - p.group.position.y;
+    if (Math.abs(diff) < 0.0005) { p.group.position.y = target; return; }
+    p.group.position.y += diff * k;
+    moving = true;
+  });
+  if (moving) sun.shadow.needsUpdate = true;
+  return moving;
+}
+
 /* ===== Navegación ===== */
 
 const sphA = new THREE.Spherical(), sphB = new THREE.Spherical(), sphC = new THREE.Spherical();
@@ -1589,15 +1758,26 @@ function scopeButtonAt(clientX, clientY) {
   return o;
 }
 
+function partAt(clientX, clientY) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(pickables, false)[0];
+  return hit ? hit.object.userData.partId : null;
+}
+
 let hoverPending = null;
 canvas.addEventListener('pointermove', e => {
   if (e.buttons || hoverPending) return;
   hoverPending = requestAnimationFrame(() => {
     hoverPending = null;
     const b = scopeButtonAt(e.clientX, e.clientY);
-    canvas.style.cursor = b ? 'pointer' : 'grab';
+    const id = b ? null : partAt(e.clientX, e.clientY);
+    setHover(id);
+    canvas.style.cursor = b || (id && id !== 'board') ? 'pointer' : 'grab';
   });
 });
+canvas.addEventListener('pointerleave', () => setHover(null));
 
 canvas.addEventListener('pointerup', e => {
   canvas.style.cursor = 'grab';
@@ -1614,6 +1794,7 @@ canvas.addEventListener('pointerup', e => {
       down = null;
       return;
     }
+    select(partAt(e.clientX, e.clientY));
   }
   if (moved < 6 && quick && down.b === 0) focusAt(e.clientX, e.clientY, 0.6);
   if (moved < 6 && quick && down.b === 2) focusAt(e.clientX, e.clientY, 1.6);
@@ -1625,6 +1806,10 @@ canvas.style.cursor = 'grab';
 addEventListener('keydown', e => {
   if (svStage) {
     if (e.key === 'Escape') closeScope();
+    return;
+  }
+  if (e.key === 'Escape' && selected) {
+    select(null);
     return;
   }
   if (e.key === 'Escape' || e.key === 'Home') flyTo(HOME.pos.clone(), HOME.target.clone(), 0.9);
@@ -1666,6 +1851,7 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (svStage) return;
   if (fly) stepFly(dt);
+  if (stepExplode(dt)) needsRender = true;
   controls.update();
   if (!fly) clampTarget();
   if (!fly && !needsRender) return;
